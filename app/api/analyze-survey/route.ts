@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 
 export async function POST(req: Request) {
   try {
@@ -10,9 +10,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "API key not configured" }, { status: 500 });
     }
 
-    const anthropic = new Anthropic({
-        apiKey: apiKey
-    });
+    const ai = new GoogleGenAI({ apiKey: apiKey });
 
     const prompt = `
       You are an expert Canadian travel agent. Analyze the following traveler survey profile and recommend an archetype and 1-3 Canadian provinces/territories that best fit their needs.
@@ -33,23 +31,21 @@ export async function POST(req: Request) {
       Do not include any other text in your response, just the JSON string.
     `;
 
-    const response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 500,
-      temperature: 0.7,
-      system: "You are a specialized travel API that only outputs valid JSON.",
-      messages: [
-        { role: "user", content: prompt }
-      ]
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+          responseMimeType: "application/json",
+          temperature: 0.7,
+          systemInstruction: "You are a specialized travel API that only outputs valid JSON.",
+      }
     });
-    
-    // Parse the response text to JSON
-    const block = response.content[0];
-    if (block.type !== 'text') {
+
+    if (!response.text) {
        throw new Error("Unexpected API response format");
     }
     
-    const parsedData = JSON.parse(block.text);
+    const parsedData = JSON.parse(response.text);
     return NextResponse.json(parsedData);
 
   } catch (error) {

@@ -81,6 +81,7 @@ export function StartingCityStep() {
                }
             }}
             onFocus={() => { if (suggestions.length > 0) setShowDropdown(true); }}
+            onBlur={() => setShowDropdown(false)}
           />
           {isLoading && (
              <Loader2 className="absolute right-4 animate-spin text-sky-400" size={20} />
@@ -93,7 +94,10 @@ export function StartingCityStep() {
             {suggestions.map((sugg) => (
               <li
                 key={sugg.id}
-                onClick={() => handleSelect(sugg)}
+                onMouseDown={(e) => {
+                   e.preventDefault(); // Prevent input from losing focus immediately
+                   handleSelect(sugg);
+                }}
                 className="px-4 py-3 hover:bg-sky-500/20 hover:text-sky-300 cursor-pointer text-zinc-300 transition-colors flex items-center gap-3 border-b border-zinc-700/50 last:border-0"
               >
                 <MapPin size={16} className="text-zinc-500 flex-shrink-0" />
