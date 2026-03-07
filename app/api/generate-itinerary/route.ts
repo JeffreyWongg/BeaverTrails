@@ -7,36 +7,157 @@ const MODELS = [
   "arcee-ai/trinity-large-preview:free",
 ];
 
+const TIMEOUT_MS = 45000;
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+
+// --- Mapbox Geocoding ---
+async function geocode(query: string, proximity?: string): Promise<[number, number] | null> {
+  try {
+    const params = new URLSearchParams({
+      access_token: MAPBOX_TOKEN,
+      limit: "1",
+      country: "CA",
+    });
+    if (proximity) params.set("proximity", proximity);
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?${params}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const coords = data.features?.[0]?.center;
+    return coords?.length === 2 ? (coords as [number, number]) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Check if coords are within ~150km of a reference point
+function isNearby(coords: [number, number], ref: [number, number], maxKm = 150): boolean {
+  const dLng = (coords[0] - ref[0]) * Math.cos((ref[1] * Math.PI) / 180) * 111;
+  const dLat = (coords[1] - ref[1]) * 111;
+  return Math.sqrt(dLng * dLng + dLat * dLat) < maxKm;
+}
+
+// --- Fix all coordinates using real geocoding ---
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function geocodeItinerary(itinerary: any[]): Promise<any[]> {
+  // Step 1: Geocode all cities first — include province for accuracy
+  const cityResults = await Promise.all(
+    itinerary.map((day) => geocode(`${day.city}, ${day.province}, Canada`))
+  );
+  for (let i = 0; i < itinerary.length; i++) {
+    if (cityResults[i]) itinerary[i].city_coordinates = cityResults[i];
+  }
+
+  // Step 2: Geocode stops, hotels, airports — always include city + province
+  const tasks: Array<{
+    callback: (coords: [number, number]) => void;
+    query: string;
+    proximity: string;
+    cityCoords: [number, number] | null;
+    maxKm: number;
+  }> = [];
+
+  for (const day of itinerary) {
+    const cityCoords: [number, number] | null = day.city_coordinates || null;
+    const cityProx = cityCoords ? `${cityCoords[0]},${cityCoords[1]}` : "";
+
+    // Stops — query includes stop name + city + province
+    if (day.stops && Array.isArray(day.stops)) {
+      for (const stop of day.stops) {
+        tasks.push({
+          query: `${stop.name}, ${day.city}, ${day.province}`,
+          proximity: cityProx,
+          cityCoords,
+          maxKm: 100,
+          callback: (coords) => { stop.coordinates = coords; },
+        });
+      }
+    }
+
+    // Hotel — query includes hotel name + city + province
+    if (day.overnight_hotel) {
+      tasks.push({
+        query: `${day.overnight_hotel}, ${day.city}, ${day.province}`,
+        proximity: cityProx,
+        cityCoords,
+        maxKm: 100,
+        callback: (coords) => { day.overnight_hotel_coordinates = coords; },
+      });
+    }
+
+    // Airport — query includes province, wider radius allowed
+    if (day.airport?.name) {
+      tasks.push({
+        query: `${day.airport.name}, ${day.province}, Canada`,
+        proximity: cityProx,
+        cityCoords,
+        maxKm: 200,
+        callback: (coords) => { day.airport.coordinates = coords; },
+      });
+    }
+  }
+
+  // Run in batches of 10
+  const BATCH = 10;
+  for (let i = 0; i < tasks.length; i += BATCH) {
+    const batch = tasks.slice(i, i + BATCH);
+    const results = await Promise.all(
+      batch.map((t) => geocode(t.query, t.proximity || undefined))
+    );
+    for (let j = 0; j < batch.length; j++) {
+      const coords = results[j];
+      if (coords) {
+        // Validate: if the result is way too far from the city, snap to city center instead
+        if (batch[j].cityCoords && !isNearby(coords, batch[j].cityCoords!, batch[j].maxKm)) {
+          console.warn(`[geocode] "${batch[j].query}" returned coords too far from ${batch[j].cityCoords}, using city center`);
+          batch[j].callback(batch[j].cityCoords!);
+        } else {
+          batch[j].callback(coords);
+        }
+      } else if (batch[j].cityCoords) {
+        // Geocoding failed entirely — fall back to city center
+        batch[j].callback(batch[j].cityCoords!);
+      }
+    }
+  }
+
+  return itinerary;
+}
+
 async function callOpenRouter(apiKey: string, model: string, messages: Array<{ role: string; content: string }>) {
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://beavertrails.app",
-      "X-Title": "BeaverTrails",
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.7,
-    }),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`OpenRouter ${model} error ${response.status}: ${errText}`);
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://beavertrails.app",
+        "X-Title": "BeaverTrails",
+      },
+      body: JSON.stringify({ model, messages, temperature: 0.5 }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timer);
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`${model} error ${response.status}: ${errText.slice(0, 200)}`);
+    }
+
+    const result = await response.json();
+    const content = result.choices?.[0]?.message?.content;
+    if (!content) throw new Error(`No content from ${model}`);
+    return content.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  } catch (err) {
+    clearTimeout(timer);
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error(`${model} timed out after ${TIMEOUT_MS / 1000}s`);
+    }
+    throw err;
   }
-
-  const result = await response.json();
-  const content = result.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error(`No content in response from ${model}`);
-  }
-
-  // Strip markdown code fences if present
-  const cleaned = content.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  return cleaned;
 }
 
 export async function POST(req: Request) {
@@ -48,67 +169,46 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "OpenRouter API key not configured" }, { status: 500 });
     }
 
-    const prompt = `You are an expert Canadian travel agent. Generate a detailed daily itinerary for the following traveler.
+    const duration = surveyData.tripDuration || 7;
+    const startCity = surveyData.startingCity?.name || "Toronto";
+    const provinces = surveyData.recommendedProvinces?.join(", ") || "Ontario";
 
-Traveler Profile:
-- Archetype: ${surveyData.travellerArchetype}
-- Group: ${surveyData.groupComposition} (${surveyData.ageRange} yrs)
-- Access Needs: ${surveyData.accessibilityNeeds.join(", ")}
-- Duration: ${surveyData.tripDuration} days
-- Budget: ${surveyData.budgetPerPerson}
-- Starting City: ${surveyData.startingCity?.name || "Toronto"}
-- Selected Activities: ${surveyData.activities.join(", ")}
-- Dream Trip Notes: ${surveyData.dreamTrip || "None provided"}
+    const prompt = `${duration}-day Canada trip from ${startCity} through ${provinces}. ${surveyData.travellerArchetype}, likes ${surveyData.activities?.join(", ") || "sightseeing"}.${surveyData.dreamTrip ? ` "${surveyData.dreamTrip}"` : ""} Budget: ${surveyData.budgetPerPerson}.
 
-Strict Rules:
-1. You must route them through ONLY the recommended provinces: ${surveyData.recommendedProvinces.join(", ")}.
-2. You MUST include at least 2 stops from destinations under 100k annual visitors (hidden gems).
-3. Account for realistic travel methods between cities (e.g. flights across the country, driving locally).
-4. You MUST provide highly accurate GPS coordinates [longitude, latitude] for every city and every stop.
-5. Coordinates MUST be float arrays: [longitude, latitude] (e.g. [-114.07, 51.04]). Negative longitude for Canada!
-6. Output MUST be a JSON array of Day objects. DO NOT OUTPUT ANYTHING ELSE. ONLY THE JSON ARRAY.
+Focus on hidden gems and local favorites over tourist traps. Drive when possible, fly only if 1000+km. Each stop needs a short "description". On flight days, include airport as a stop.
 
-Day Object Schema:
-{
-  "date_offset": number (1 to ${surveyData.tripDuration}),
-  "city": string,
-  "city_coordinates": [number, number],
-  "province": string,
-  "stops": [
-     { 
-        "name": string, 
-        "type": string (must be exactly 'park', 'restaurant', 'hotel', 'attraction', or 'other'),
-        "coordinates": [number, number] (exact mapbox longitude, latitude floats)
-     }
-  ] (array of 2-4 points of interest),
-  "overnight_hotel": string (a realistic hotel or lodge suggestion based on budget),
-  "travel_time_from_prev_hours": number (estimated travel time in hours from the previous day's city. 0 for day 1.),
-  "travel_method_from_prev": string (must be exactly one of: 'flight', 'drive', 'train', 'boat', or 'none')
-}`;
+Day schema: {"date_offset":1,"city":"Toronto","city_coordinates":[-79.38,43.65],"province":"Ontario","stops":[{"name":"Graffiti Alley","type":"other","coordinates":[-79.4,43.65],"description":"Vibrant street art hidden in the Fashion District."}],"overnight_hotel":"The Drake","overnight_hotel_coordinates":[-79.42,43.64],"travel_time_from_prev_hours":0,"travel_method_from_prev":"none"}
+
+JSON array only.`;
 
     const messages = [
-      { role: "system", content: "You are a specialized travel API that only outputs valid JSON arrays. Output ONLY the raw JSON array, no markdown, no code fences." },
+      { role: "system", content: "You are a Canadian travel planning API. Respond with only a raw JSON array — no markdown, no explanation." },
       { role: "user", content: prompt },
     ];
 
     let lastError = "";
     for (const model of MODELS) {
       try {
-        console.log(`[generate-itinerary] Trying model: ${model}`);
+        console.log(`[generate-itinerary] Trying ${model}...`);
         const content = await callOpenRouter(apiKey, model, messages);
         const parsed = JSON.parse(content);
-        // Handle if the model wraps the array in an object
-        const itinerary = Array.isArray(parsed) ? parsed : parsed.itinerary || parsed.days || parsed;
-        console.log(`[generate-itinerary] Success with model: ${model}`);
+        let itinerary = Array.isArray(parsed) ? parsed : parsed.itinerary || parsed.days || parsed;
+        console.log(`[generate-itinerary] ✓ ${model} (${Array.isArray(itinerary) ? itinerary.length : '?'} days)`);
+
+        // Fix all coordinates with real Mapbox geocoding
+        console.log(`[generate-itinerary] Geocoding all locations...`);
+        itinerary = await geocodeItinerary(itinerary);
+        console.log(`[generate-itinerary] ✓ Geocoding done`);
+
         return NextResponse.json(itinerary);
       } catch (err: unknown) {
         lastError = err instanceof Error ? err.message : String(err);
-        console.warn(`[generate-itinerary] ${model} failed: ${lastError}`);
+        console.warn(`[generate-itinerary] ✗ ${model}: ${lastError.slice(0, 120)}`);
         continue;
       }
     }
 
-    throw new Error(`All models failed. Last error: ${lastError}`);
+    throw new Error(`All models failed. Last: ${lastError}`);
 
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);

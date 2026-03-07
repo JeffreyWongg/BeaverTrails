@@ -1,7 +1,8 @@
 export interface Stop {
   name: string;
-  type: 'park' | 'restaurant' | 'hotel' | 'attraction' | 'other';
+  type: 'park' | 'restaurant' | 'hotel' | 'attraction' | 'airport' | 'other';
   coordinates: [number, number]; // [longitude, latitude]
+  description?: string; // Short 1-2 sentence description
 }
 
 export interface Day {
@@ -11,6 +12,11 @@ export interface Day {
   province: string;
   stops: Stop[];
   overnight_hotel: string;
+  overnight_hotel_coordinates?: [number, number]; // [longitude, latitude]
+  airport?: {
+    name: string;
+    coordinates: [number, number]; // [longitude, latitude]
+  };
   travel_time_from_prev_hours: number;
   travel_method_from_prev: 'flight' | 'drive' | 'train' | 'boat' | 'none';
 }

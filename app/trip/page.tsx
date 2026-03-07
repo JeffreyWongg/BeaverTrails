@@ -2,7 +2,7 @@
 
 import { useSurveyStore } from "../../lib/store";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Stop } from "../../types";
 
 import { TripMap } from "./components/TripMap";
@@ -15,7 +15,36 @@ export default function TripPage() {
   const router = useRouter();
 
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
-  const [routingMode, setRoutingMode] = useState<"straight" | "directions">("directions");
+
+  const allStops = useMemo(() => {
+    if (!itinerary) return [];
+    const stops: Stop[] = [];
+    itinerary.forEach((day) => {
+      // Airport (arrival) at the start of the day if it was a flight
+      if (day.airport && day.airport.coordinates?.length === 2) {
+        stops.push({
+          name: day.airport.name,
+          type: "airport",
+          coordinates: day.airport.coordinates,
+          description: `Arrival airport for your flight into ${day.city}.`,
+        });
+      }
+      // Regular stops (already have descriptions from AI)
+      (day.stops || []).forEach((s) => {
+        if (s.coordinates?.length === 2) stops.push(s);
+      });
+      // Hotel at the end of the day
+      if (day.overnight_hotel && day.overnight_hotel_coordinates?.length === 2) {
+        stops.push({
+          name: day.overnight_hotel,
+          type: "hotel",
+          coordinates: day.overnight_hotel_coordinates,
+          description: `Your overnight stay in ${day.city}.`,
+        });
+      }
+    });
+    return stops;
+  }, [itinerary]);
 
   if (!itinerary || itinerary.length === 0) {
      return (
@@ -30,11 +59,12 @@ export default function TripPage() {
 
   return (
     <div className="w-full h-screen overflow-hidden flex bg-zinc-950 text-white">
-       {/* 70% Map Container */}
        <div className="w-[70%] h-full relative">
           <TripMap 
              onStopClick={setSelectedStop} 
-             routingMode={routingMode} 
+             selectedStop={selectedStop}
+             allStops={allStops}
+             onNavigate={setSelectedStop}
           />
           <ImmersiveDrawer 
              stop={selectedStop} 
@@ -42,11 +72,8 @@ export default function TripPage() {
           />
        </div>
 
-       {/* 30% Sidebar */}
        <div className="w-[30%] h-full">
           <TripSidebar 
-             routingMode={routingMode} 
-             setRoutingMode={setRoutingMode}
              onStopClick={setSelectedStop}
           />
        </div>

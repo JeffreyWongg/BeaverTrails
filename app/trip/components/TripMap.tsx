@@ -1,35 +1,85 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useSurveyStore } from "../../../lib/store";
 import { Stop } from "../../../types";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface TripMapProps {
   onStopClick: (stop: Stop) => void;
-  routingMode: "straight" | "directions";
+  selectedStop: Stop | null;
+  allStops: Stop[];
+  onNavigate: (stop: Stop) => void;
 }
 
-export function TripMap({ onStopClick, routingMode }: TripMapProps) {
+export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: TripMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<mapboxgl.Marker[]>([]);
+  const onStopClickRef = useRef(onStopClick);
+  onStopClickRef.current = onStopClick;
+
   const { itinerary } = useSurveyStore();
   const [mapLoaded, setMapLoaded] = useState(false);
 
+  const currentIndex = selectedStop
+    ? allStops.findIndex(
+        (s) =>
+          s.name === selectedStop.name &&
+          s.coordinates[0] === selectedStop.coordinates[0] &&
+          s.coordinates[1] === selectedStop.coordinates[1]
+      )
+    : -1;
+
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex >= 0 && currentIndex < allStops.length - 1;
+
+  const handlePrev = useCallback(() => {
+    if (hasPrev) onNavigate(allStops[currentIndex - 1]);
+  }, [hasPrev, currentIndex, allStops, onNavigate]);
+
+  const handleNext = useCallback(() => {
+    if (hasNext) onNavigate(allStops[currentIndex + 1]);
+  }, [hasNext, currentIndex, allStops, onNavigate]);
+
+  // Smooth fly to selected stop
+  useEffect(() => {
+    if (!mapRef.current || !selectedStop) return;
+    const map = mapRef.current;
+
+    const currentCenter = map.getCenter();
+    const dx = selectedStop.coordinates[0] - currentCenter.lng;
+    const dy = selectedStop.coordinates[1] - currentCenter.lat;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const bearing = Math.atan2(dx, dy) * (180 / Math.PI) * 0.12;
+
+    map.flyTo({
+      center: selectedStop.coordinates,
+      zoom: dist > 2 ? 12 : 14.5,
+      pitch: 50,
+      bearing,
+      duration: Math.min(Math.max(dist * 500, 1800), 4000),
+      curve: 1.42,
+      essential: true,
+    });
+  }, [selectedStop]);
+
+  // Initialize map
   useEffect(() => {
     if (!mapContainer.current || !itinerary || itinerary.length === 0) return;
-
-    if (mapRef.current) return; // Initialize map only once
+    if (mapRef.current) return;
 
     mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
     const map = new mapboxgl.Map({
       container: mapContainer.current,
       style: "mapbox://styles/mapbox/outdoors-v12",
-      center: [-98.0, 60.0], // Center of Canada roughly
+      center: [-98.0, 60.0],
       zoom: 3,
       pitch: 0,
+      antialias: false,
     });
 
     mapRef.current = map;
@@ -37,28 +87,20 @@ export function TripMap({ onStopClick, routingMode }: TripMapProps) {
     map.on("load", () => {
       setMapLoaded(true);
 
-      // Add 3D Terrain
-      map.addSource("mapbox-dem", {
-        type: "raster-dem",
-        url: "mapbox://mapbox.mapbox-terrain-dem-v1",
-        tileSize: 512,
-        maxzoom: 14,
-      });
-      map.setTerrain({ source: "mapbox-dem", exaggeration: 1.5 });
-
-      // Fly to the first city after a short delay
       setTimeout(() => {
         const firstCityCoords = itinerary[0].city_coordinates;
         if (firstCityCoords && firstCityCoords.length === 2) {
           map.flyTo({
             center: [firstCityCoords[0], firstCityCoords[1]],
-            zoom: 11,
-            pitch: 60,
-            bearing: -20,
-            duration: 4000,
+            zoom: 10,
+            pitch: 45,
+            bearing: -15,
+            duration: 3000,
+            curve: 1.42,
+            essential: true,
           });
         }
-      }, 1000);
+      }, 500);
     });
 
     return () => {
@@ -67,121 +109,185 @@ export function TripMap({ onStopClick, routingMode }: TripMapProps) {
     };
   }, [itinerary]);
 
+  // Markers & route
   useEffect(() => {
     if (!mapLoaded || !mapRef.current || !itinerary) return;
     const map = mapRef.current;
 
-    // Helper to get emoji for stop type
     const getEmoji = (type: string) => {
       switch (type) {
-        case "park":
-          return "🌲";
-        case "restaurant":
-          return "🍽️";
-        case "hotel":
-          return "🏨";
-        case "attraction":
-          return "📸";
-        default:
-          return "📍";
+        case "park": return "🌲";
+        case "restaurant": return "🍽️";
+        case "hotel": return "🏨";
+        case "attraction": return "📸";
+        case "airport": return "✈️";
+        default: return "📍";
       }
     };
 
-    // Clean up existing markers
-    const currentMarkers = document.querySelectorAll(".custom-marker");
-    currentMarkers.forEach((m) => m.remove());
+    const addMarker = (coords: [number, number], emoji: string, size: string, clickHandler?: () => void) => {
+      const el = document.createElement("div");
+      el.className = `custom-marker ${size} cursor-pointer hover:scale-125 transition-transform duration-200`;
+      el.style.filter = "drop-shadow(0 2px 4px rgba(0,0,0,0.4))";
+      el.innerHTML = emoji;
+      if (clickHandler) el.addEventListener("click", clickHandler);
 
-    const coordinatesList: number[][] = [];
+      const marker = new mapboxgl.Marker({ element: el })
+        .setLngLat(coords)
+        .addTo(map);
 
-    itinerary.forEach((day) => {
-      if (day.city_coordinates) coordinatesList.push(day.city_coordinates);
-      
-      day.stops?.forEach((stop) => {
-        if (stop.coordinates && stop.coordinates.length === 2) {
-           coordinatesList.push(stop.coordinates);
-
-           const el = document.createElement("div");
-           el.className = "custom-marker text-3xl cursor-pointer hover:scale-125 transition-transform duration-200 drop-shadow-md";
-           el.innerHTML = getEmoji(stop.type);
-           
-           el.addEventListener("click", () => {
-             onStopClick(stop);
-             map.flyTo({ center: stop.coordinates, zoom: 14, pitch: 45 });
-           });
-
-           new mapboxgl.Marker({ element: el })
-             .setLngLat(stop.coordinates as [number, number])
-             .addTo(map);
-        }
-      });
-    });
-
-    // Handle route line drawing
-    const drawRoute = async () => {
-       // Remove previous route if exists
-       if (map.getLayer("route-line-animated")) map.removeLayer("route-line-animated");
-       if (map.getSource("route-source")) map.removeSource("route-source");
-
-       if (coordinatesList.length < 2) return;
-
-       const geojson: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
-         type: "FeatureCollection",
-         features: [
-           {
-             type: "Feature",
-             geometry: {
-               type: "LineString",
-               coordinates: coordinatesList,
-             },
-             properties: {}
-           }
-         ]
-       };
-
-       map.addSource("route-source", {
-         type: "geojson",
-         data: geojson,
-       });
-
-       map.addLayer({
-         id: "route-line-animated",
-         type: "line",
-         source: "route-source",
-         layout: {
-           "line-join": "round",
-           "line-cap": "round"
-         },
-         paint: {
-           "line-color": "#10b981", // Emerald 500
-           "line-width": 6,
-           "line-dasharray": [0, 4, 3]
-         }
-       });
-
-       // Dash animation loop
-       let step = 0;
-       const animateDashArray = () => {
-         if (!map.getLayer("route-line-animated")) return;
-         
-         const newStep = parseInt(
-            (step % 10).toString()
-         );
-         
-         map.setPaintProperty("route-line-animated", "line-dasharray", [
-            newStep,
-            4,
-            3,
-         ]);
-         
-         step += 0.2;
-         requestAnimationFrame(animateDashArray);
-       };
-       animateDashArray();
+      markersRef.current.push(marker);
     };
 
-    drawRoute();
+    const updateMapData = () => {
+      // Clean up previous markers
+      markersRef.current.forEach((m) => m.remove());
+      markersRef.current = [];
 
-  }, [mapLoaded, itinerary, routingMode, onStopClick]);
+      // Route connects city centers only — logical travel path
+      const routeCoords: number[][] = [];
 
-  return <div ref={mapContainer} className="w-full h-full relative" />;
+      itinerary.forEach((day) => {
+        // Add city to route path
+        if (day.city_coordinates) {
+          routeCoords.push(day.city_coordinates);
+        }
+
+        // Activity stop markers
+        day.stops?.forEach((stop) => {
+          if (stop.coordinates && stop.coordinates.length === 2) {
+            addMarker(stop.coordinates, getEmoji(stop.type), "text-2xl", () => {
+              onStopClickRef.current(stop);
+            });
+          }
+        });
+
+        // Hotel marker
+        if (day.overnight_hotel_coordinates && day.overnight_hotel_coordinates.length === 2) {
+          addMarker(day.overnight_hotel_coordinates, "🛏️", "text-xl", () => {
+            onStopClickRef.current({
+              name: day.overnight_hotel,
+              type: "hotel",
+              coordinates: day.overnight_hotel_coordinates as [number, number],
+              description: `Your overnight stay in ${day.city}.`,
+            });
+          });
+        }
+
+        // Airport marker
+        if (day.airport && day.airport.coordinates && day.airport.coordinates.length === 2) {
+          addMarker(day.airport.coordinates, "✈️", "text-2xl", () => {
+            onStopClickRef.current({
+              name: day.airport!.name,
+              type: "airport",
+              coordinates: day.airport!.coordinates,
+              description: `Arrival airport for your flight into ${day.city}.`,
+            });
+          });
+        }
+      });
+
+      // Clean up previous route layers
+      try {
+        if (map.getLayer("route-line")) map.removeLayer("route-line");
+        if (map.getLayer("route-casing")) map.removeLayer("route-casing");
+        if (map.getSource("route-source")) map.removeSource("route-source");
+      } catch {
+        // Layers may not exist yet
+      }
+
+      // Draw route line connecting cities in order
+      if (routeCoords.length >= 2) {
+        map.addSource("route-source", {
+          type: "geojson",
+          data: {
+            type: "FeatureCollection",
+            features: [{
+              type: "Feature",
+              geometry: { type: "LineString", coordinates: routeCoords },
+              properties: {},
+            }],
+          },
+        });
+
+        map.addLayer({
+          id: "route-casing",
+          type: "line",
+          source: "route-source",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: {
+            "line-color": "#064e3b",
+            "line-width": 6,
+            "line-opacity": 0.4,
+          },
+        });
+
+        map.addLayer({
+          id: "route-line",
+          type: "line",
+          source: "route-source",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: {
+            "line-color": "#34d399",
+            "line-width": 3,
+            "line-opacity": 0.9,
+          },
+        });
+      }
+    };
+
+    if (map.isStyleLoaded()) {
+      updateMapData();
+    } else {
+      map.once("style.load", updateMapData);
+    }
+  }, [mapLoaded, itinerary]);
+
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case "park": return "🌲 Park";
+      case "restaurant": return "🍽️ Restaurant";
+      case "hotel": return "🛏️ Hotel";
+      case "attraction": return "📸 Attraction";
+      case "airport": return "✈️ Airport";
+      default: return "📍 Stop";
+    }
+  };
+
+  return (
+    <>
+      <div ref={mapContainer} className="w-full h-full" />
+      {selectedStop && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 pointer-events-auto">
+          <button
+            onClick={handlePrev}
+            disabled={!hasPrev}
+            className="w-10 h-10 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-700 flex items-center justify-center text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <ChevronLeft size={20} />
+          </button>
+
+          <div className="bg-zinc-950/80 backdrop-blur-md border border-zinc-700 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[200px]">
+            <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-400 mb-0.5">
+              {getTypeLabel(selectedStop.type)}
+            </span>
+            <span className="text-sm font-bold text-white text-center leading-tight">
+              {selectedStop.name}
+            </span>
+            <span className="text-[10px] text-zinc-500 mt-1">
+              {currentIndex + 1} of {allStops.length}
+            </span>
+          </div>
+
+          <button
+            onClick={handleNext}
+            disabled={!hasNext}
+            className="w-10 h-10 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-700 flex items-center justify-center text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
+      )}
+    </>
+  );
 }

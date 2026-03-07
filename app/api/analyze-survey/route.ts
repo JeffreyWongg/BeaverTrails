@@ -7,36 +7,43 @@ const MODELS = [
   "arcee-ai/trinity-large-preview:free",
 ];
 
+const TIMEOUT_MS = 20000;
+
 async function callOpenRouter(apiKey: string, model: string, messages: Array<{ role: string; content: string }>) {
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://beavertrails.app",
-      "X-Title": "BeaverTrails",
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.7,
-    }),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`OpenRouter ${model} error ${response.status}: ${errText}`);
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://beavertrails.app",
+        "X-Title": "BeaverTrails",
+      },
+      body: JSON.stringify({ model, messages, temperature: 0.5 }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timer);
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`${model} error ${response.status}: ${errText.slice(0, 200)}`);
+    }
+
+    const result = await response.json();
+    const content = result.choices?.[0]?.message?.content;
+    if (!content) throw new Error(`No content from ${model}`);
+    return content.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  } catch (err) {
+    clearTimeout(timer);
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error(`${model} timed out`);
+    }
+    throw err;
   }
-
-  const result = await response.json();
-  const content = result.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error(`No content in response from ${model}`);
-  }
-
-  // Strip markdown code fences if present
-  const cleaned = content.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-  return cleaned;
 }
 
 export async function POST(req: Request) {
@@ -48,44 +55,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "OpenRouter API key not configured" }, { status: 500 });
     }
 
-    const prompt = `You are an expert Canadian travel agent. Analyze the following traveler survey profile and recommend an archetype and 1-3 Canadian provinces/territories that best fit their needs.
+    const prompt = `Based on this traveler's profile, give them a fun archetype name (like "The Budget Urban Adventurer" or "The Luxury Nature Seeker") and recommend 1-3 Canadian provinces that suit them best.
 
-Survey Profile:
-- Age Range: ${surveyData.ageRange}
-- Accessibility Needs: ${surveyData.accessibilityNeeds.join(", ")}
-- Group Composition: ${surveyData.groupComposition}
-- Trip Duration: ${surveyData.tripDuration} days
-- Budget: ${surveyData.budgetPerPerson}
-- Luggage: ${surveyData.luggageAmount}
-- Starting City: ${surveyData.startingCity?.name || "Unknown"}
+They're ${surveyData.ageRange} years old, traveling as ${surveyData.groupComposition}, for ${surveyData.tripDuration} days on a ${surveyData.budgetPerPerson} budget, starting from ${surveyData.startingCity?.name || "somewhere in Canada"}.${surveyData.accessibilityNeeds?.length ? ` Accessibility needs: ${surveyData.accessibilityNeeds.join(", ")}.` : ""}
 
-Respond strictly with a JSON object containing exactly two keys:
-1. "traveller_archetype" (string, e.g. "The Luxury Wildlife Explorer", "The Budget Urban Adventurer")
-2. "recommended_provinces" (array of strings, e.g. ["British Columbia", "Alberta"])
-
-Do not include any other text in your response, just the JSON object.`;
+Return JSON: {"traveller_archetype": "...", "recommended_provinces": ["..."]}`;
 
     const messages = [
-      { role: "system", content: "You are a specialized travel API that only outputs valid JSON. Do not wrap your response in markdown code fences." },
+      { role: "system", content: "You are a Canadian travel expert. Respond with only raw JSON — no markdown, no extra text." },
       { role: "user", content: prompt },
     ];
 
     let lastError = "";
     for (const model of MODELS) {
       try {
-        console.log(`[analyze-survey] Trying model: ${model}`);
+        console.log(`[analyze-survey] Trying ${model}...`);
         const content = await callOpenRouter(apiKey, model, messages);
         const parsedData = JSON.parse(content);
-        console.log(`[analyze-survey] Success with model: ${model}`);
+        console.log(`[analyze-survey] ✓ ${model}`);
         return NextResponse.json(parsedData);
       } catch (err: unknown) {
         lastError = err instanceof Error ? err.message : String(err);
-        console.warn(`[analyze-survey] ${model} failed: ${lastError}`);
+        console.warn(`[analyze-survey] ✗ ${model}: ${lastError.slice(0, 100)}`);
         continue;
       }
     }
 
-    throw new Error(`All models failed. Last error: ${lastError}`);
+    throw new Error(`All models failed. Last: ${lastError}`);
 
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);

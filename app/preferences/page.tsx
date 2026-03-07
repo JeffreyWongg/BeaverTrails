@@ -43,11 +43,13 @@ export default function PreferencesPage() {
      setField("activities", nextActivities);
   };
 
+  const [genError, setGenError] = useState("");
+
   const handleGenerate = async () => {
      setIsGenerating(true);
+     setGenError("");
      
      try {
-         // Gather only data fields from the store
          const s = useSurveyStore.getState();
          const payload = {
            ageRange: s.ageRange,
@@ -62,12 +64,18 @@ export default function PreferencesPage() {
            activities: s.activities,
            dreamTrip: s.dreamTrip,
          };
+
+         const controller = new AbortController();
+         const timeout = setTimeout(() => controller.abort(), 120000); // 2 min client timeout
          
          const response = await fetch("/api/generate-itinerary", {
              method: "POST",
              headers: { "Content-Type": "application/json" },
              body: JSON.stringify(payload),
+             signal: controller.signal,
          });
+
+         clearTimeout(timeout);
 
          if (response.ok) {
              const itinerary = await response.json();
@@ -76,10 +84,14 @@ export default function PreferencesPage() {
          } else {
              const errorData = await response.text();
              console.error("Failed to generate itinerary:", response.status, errorData);
+             setGenError("AI models are busy. Please try again.");
              setIsGenerating(false);
          }
      } catch (err) {
          console.error(err);
+         setGenError(err instanceof DOMException && err.name === "AbortError" 
+           ? "Request timed out. Please try again." 
+           : "Something went wrong. Please try again.");
          setIsGenerating(false);
      }
   };
@@ -96,16 +108,18 @@ export default function PreferencesPage() {
   }
 
   // --- LOADING STATE ---
-  if (isGenerating) {
+  if (isGenerating || genError) {
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center relative overflow-hidden">
          <div className="absolute top-0 w-full h-1 bg-zinc-800">
-            <motion.div 
-               className="h-full bg-emerald-500" 
-               initial={{ width: "0%" }}
-               animate={{ width: "100%" }}
-               transition={{ duration: 15, ease: "linear" }}
-            />
+            {!genError && (
+              <motion.div 
+                 className="h-full bg-emerald-500" 
+                 initial={{ width: "0%" }}
+                 animate={{ width: "95%" }}
+                 transition={{ duration: 60, ease: "easeOut" }}
+              />
+            )}
          </div>
          
          <div className="relative w-full max-w-lg aspect-square flex items-center justify-center mb-12 opacity-80 mix-blend-screen">
@@ -117,27 +131,43 @@ export default function PreferencesPage() {
                animate={{ opacity: 1 }}
                transition={{ duration: 1 }}
              >
-                {/* Simplified SVG Map of Canada for visual effect */}
                 <path d="M 200,400 Q 150,300 250,200 T 500,150 Q 600,150 700,250 T 600,450 Q 400,500 200,400" className="opacity-20" />
                 
-                {/* Pulsing route dot */}
-                <motion.circle 
-                   cx="400" cy="300" r="10" 
-                   className="fill-emerald-400"
-                   animate={{ 
-                      scale: [1, 2, 1],
-                      opacity: [1, 0.4, 1],
-                      cx: [200, 400, 600, 400],
-                      cy: [400, 300, 250, 450]
-                   }}
-                   transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-                />
+                {!genError && (
+                  <motion.circle 
+                     cx="400" cy="300" r="10" 
+                     className="fill-emerald-400"
+                     animate={{ 
+                        scale: [1, 2, 1],
+                        opacity: [1, 0.4, 1],
+                        cx: [200, 400, 600, 400],
+                        cy: [400, 300, 250, 450]
+                     }}
+                     transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                )}
              </motion.svg>
-             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                 <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-200 animate-pulse drop-shadow-lg mb-2">
-                    Crafting Your Itinerary
-                 </h2>
-                 <p className="text-zinc-400 text-lg">Finding hidden gems across Canada...</p>
+             <div className="absolute inset-0 flex flex-col items-center justify-center">
+                 {genError ? (
+                   <>
+                     <h2 className="text-2xl font-bold text-red-400 mb-2">Generation Failed</h2>
+                     <p className="text-zinc-400 text-lg mb-6">{genError}</p>
+                     <button 
+                       onClick={() => { setGenError(""); handleGenerate(); }}
+                       className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full font-semibold transition-colors"
+                     >
+                       Try Again
+                     </button>
+                   </>
+                 ) : (
+                   <>
+                     <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-200 animate-pulse drop-shadow-lg mb-2">
+                        Crafting Your Itinerary
+                     </h2>
+                     <p className="text-zinc-400 text-lg">Finding hidden gems across Canada...</p>
+                     <p className="text-zinc-600 text-sm mt-4">This may take up to a minute</p>
+                   </>
+                 )}
              </div>
          </div>
       </div>
