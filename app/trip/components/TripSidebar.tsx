@@ -4,8 +4,9 @@ import { useSurveyStore } from "../../../lib/store";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { Stop } from "../../../types";
-import { ChevronDown, ChevronUp, Car, Plane, Train, Ship, ArrowRightCircle, BedDouble, Download, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Car, Plane, Train, Ship, ArrowRightCircle, BedDouble, Download, Loader2, ShoppingCart } from "lucide-react";
 import { downloadItineraryPDF } from "./ItineraryPDF";
+import { useRouter } from "next/navigation";
 
 interface TripSidebarProps {
    onStopClick: (stop: Stop) => void;
@@ -15,6 +16,7 @@ export function TripSidebar({ onStopClick }: TripSidebarProps) {
   const { itinerary, travellerArchetype } = useSurveyStore();
   const [expandedDay, setExpandedDay] = useState<number | null>(1);
   const [downloading, setDownloading] = useState(false);
+  const router = useRouter();
 
   const handleDownloadPDF = async () => {
     setDownloading(true);
@@ -48,14 +50,24 @@ export function TripSidebar({ onStopClick }: TripSidebarProps) {
                 </h2>
                 <p className="text-zinc-400 text-sm">Crafted for {travellerArchetype}</p>
              </div>
-             <button
-                onClick={handleDownloadPDF}
-                disabled={downloading}
-                title="Save as PDF"
-                className="mt-1 p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-600 text-zinc-400 hover:text-emerald-400 transition-colors disabled:opacity-50"
-             >
-                {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-             </button>
+             <div className="flex items-center gap-2 mt-1">
+                <button
+                   onClick={handleDownloadPDF}
+                   disabled={downloading}
+                   title="Save as PDF"
+                   className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-600 text-zinc-400 hover:text-emerald-400 transition-colors disabled:opacity-50"
+                >
+                   {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                </button>
+                <button
+                   onClick={() => router.push("/checkout")}
+                   title="Finalize Trip"
+                   className="p-2 rounded-xl bg-red-900/40 hover:bg-red-800/60 border border-red-800/50 hover:border-red-700 text-red-400 hover:text-red-300 transition-colors flex items-center gap-1.5 text-xs font-semibold pr-3"
+                >
+                   <ShoppingCart size={14} />
+                   Finalize
+                </button>
+             </div>
           </div>
        </div>
 
