@@ -28,17 +28,27 @@ export async function POST(req: Request) {
       Strict Rules:
       1. You must route them through ONLY the recommended provinces: ${surveyData.recommendedProvinces.join(", ")}.
       2. You MUST include at least 2 stops from destinations under 100k annual visitors (hidden gems).
-      3. Output MUST be an array of Day objects.
-      4. DO NOT OUTPUT ANYTHING ELSE. ONLY JSON.
+      3. Account for realistic travel methods between cities (e.g. flights across the country, driving locally).
+      4. You MUST provide highly accurate GPS coordinates [longitude, latitude] for every city and every stop. 
+      5. Coordinates MUST be float arrays: [longitude, latitude] (e.g. [-114.07, 51.04]). Negative longitude for Canada!
+      6. Output MUST be an array of Day objects. DO NOT OUTPUT ANYTHING ELSE. ONLY JSON.
 
       Day Object Schema:
       {
         "date_offset": number (1 to ${surveyData.tripDuration}),
         "city": string,
+        "city_coordinates": [number, number],
         "province": string,
-        "stops": string[] (array of 2-4 points of interest),
+        "stops": [
+           { 
+              "name": string, 
+              "type": string (must be exactly 'park', 'restaurant', 'hotel', 'attraction', or 'other'),
+              "coordinates": [number, number] (exact mapbox longitude, latitude floats)
+           }
+        ] (array of 2-4 points of interest),
         "overnight_hotel": string (a realistic hotel or lodge suggestion based on budget),
-        "drive_time_from_prev_hours": number (estimated driving time in hours from the previous day's city. 0 for day 1.)
+        "travel_time_from_prev_hours": number (estimated travel time in hours from the previous day's city. 0 for day 1.),
+        "travel_method_from_prev": string (must be exactly one of: 'flight', 'drive', 'train', 'boat', or 'none')
       }
     `;
 
