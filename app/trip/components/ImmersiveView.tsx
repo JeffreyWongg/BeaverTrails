@@ -358,15 +358,29 @@ export function ImmersiveView({
     recognition.start();
   }, [stop, timeOfDay, season]);
 
-  // Cleanup
+  // Stop all audio immediately
+  const killAllAudio = useCallback(() => {
+    if (narrationAudioRef.current) {
+      narrationAudioRef.current.pause();
+      narrationAudioRef.current.src = "";
+      narrationAudioRef.current = null;
+    }
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+      audioRef.current = null;
+    }
+    setIsNarrating(false);
+    setIsListening(false);
+  }, []);
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (bearingAnimRef.current) cancelAnimationFrame(bearingAnimRef.current);
-      if (narrationAudioRef.current) {
-        narrationAudioRef.current.pause();
-      }
+      killAllAudio();
     };
-  }, []);
+  }, [killAllAudio]);
 
   const filterStyle = combinedFilter();
 
@@ -412,7 +426,7 @@ export function ImmersiveView({
           {muteAmbient ? <VolumeX size={18} /> : <Volume2 size={18} />}
         </button>
         <button
-          onClick={onClose}
+          onClick={() => { killAllAudio(); onClose(); }}
           className="w-10 h-10 rounded-full bg-zinc-950/80 backdrop-blur-md flex items-center justify-center text-zinc-300 hover:text-white transition-colors"
         >
           <X size={20} />

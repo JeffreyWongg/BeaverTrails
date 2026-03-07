@@ -135,9 +135,14 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
       clickHandler?: () => void
     ) => {
       const el = document.createElement("div");
-      el.className = `custom-marker ${size} cursor-pointer hover:scale-125 transition-transform duration-200`;
-      el.style.filter = "drop-shadow(0 2px 4px rgba(0,0,0,0.4))";
-      el.innerHTML = emoji;
+      el.className = "custom-marker cursor-pointer";
+      el.style.lineHeight = "1";
+      // Inner span handles hover scaling so Mapbox's transform on the outer div is never transitioned
+      const inner = document.createElement("span");
+      inner.className = `${size} inline-block transition-transform duration-200 hover:scale-125`;
+      inner.style.filter = "drop-shadow(0 2px 4px rgba(0,0,0,0.4))";
+      inner.textContent = emoji;
+      el.appendChild(inner);
       if (clickHandler) el.addEventListener("click", clickHandler);
 
       const marker = new mapboxgl.Marker({ element: el })

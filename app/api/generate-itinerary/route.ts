@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 
+// Allow up to 2 minutes on serverless platforms (Vercel, etc.)
+export const maxDuration = 120;
+
 const MODELS = [
   "nvidia/nemotron-3-nano-30b-a3b:free",
   "stepfun/step-3.5-flash:free",
@@ -7,7 +10,7 @@ const MODELS = [
   "arcee-ai/trinity-large-preview:free",
 ];
 
-const TIMEOUT_MS = 45000;
+const PER_MODEL_TIMEOUT = 30000; // 30s per model — but they race in parallel
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
 // --- Mapbox Geocoding ---
@@ -30,17 +33,14 @@ async function geocode(query: string, proximity?: string): Promise<[number, numb
   }
 }
 
-// Check if coords are within ~150km of a reference point
 function isNearby(coords: [number, number], ref: [number, number], maxKm = 150): boolean {
   const dLng = (coords[0] - ref[0]) * Math.cos((ref[1] * Math.PI) / 180) * 111;
   const dLat = (coords[1] - ref[1]) * 111;
   return Math.sqrt(dLng * dLng + dLat * dLat) < maxKm;
 }
 
-// --- Fix all coordinates using real geocoding ---
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function geocodeItinerary(itinerary: any[]): Promise<any[]> {
-  // Step 1: Geocode all cities first — include province for accuracy
   const cityResults = await Promise.all(
     itinerary.map((day) => geocode(`${day.city}, ${day.province}, Canada`))
   );
@@ -48,7 +48,6 @@ async function geocodeItinerary(itinerary: any[]): Promise<any[]> {
     if (cityResults[i]) itinerary[i].city_coordinates = cityResults[i];
   }
 
-  // Step 2: Geocode stops, hotels, airports — always include city + province
   const tasks: Array<{
     callback: (coords: [number, number]) => void;
     query: string;
@@ -61,7 +60,6 @@ async function geocodeItinerary(itinerary: any[]): Promise<any[]> {
     const cityCoords: [number, number] | null = day.city_coordinates || null;
     const cityProx = cityCoords ? `${cityCoords[0]},${cityCoords[1]}` : "";
 
-    // Stops — query includes stop name + city + province
     if (day.stops && Array.isArray(day.stops)) {
       for (const stop of day.stops) {
         tasks.push({
@@ -74,7 +72,6 @@ async function geocodeItinerary(itinerary: any[]): Promise<any[]> {
       }
     }
 
-    // Hotel — query includes hotel name + city + province
     if (day.overnight_hotel) {
       tasks.push({
         query: `${day.overnight_hotel}, ${day.city}, ${day.province}`,
@@ -85,7 +82,6 @@ async function geocodeItinerary(itinerary: any[]): Promise<any[]> {
       });
     }
 
-    // Airport — query includes province, wider radius allowed
     if (day.airport?.name) {
       tasks.push({
         query: `${day.airport.name}, ${day.province}, Canada`,
@@ -97,27 +93,20 @@ async function geocodeItinerary(itinerary: any[]): Promise<any[]> {
     }
   }
 
-  // Run in batches of 10
-  const BATCH = 10;
-  for (let i = 0; i < tasks.length; i += BATCH) {
-    const batch = tasks.slice(i, i + BATCH);
-    const results = await Promise.all(
-      batch.map((t) => geocode(t.query, t.proximity || undefined))
-    );
-    for (let j = 0; j < batch.length; j++) {
-      const coords = results[j];
-      if (coords) {
-        // Validate: if the result is way too far from the city, snap to city center instead
-        if (batch[j].cityCoords && !isNearby(coords, batch[j].cityCoords!, batch[j].maxKm)) {
-          console.warn(`[geocode] "${batch[j].query}" returned coords too far from ${batch[j].cityCoords}, using city center`);
-          batch[j].callback(batch[j].cityCoords!);
-        } else {
-          batch[j].callback(coords);
-        }
-      } else if (batch[j].cityCoords) {
-        // Geocoding failed entirely — fall back to city center
-        batch[j].callback(batch[j].cityCoords!);
+  // Run ALL geocode calls in parallel (they're fast)
+  const results = await Promise.all(
+    tasks.map((t) => geocode(t.query, t.proximity || undefined))
+  );
+  for (let j = 0; j < tasks.length; j++) {
+    const coords = results[j];
+    if (coords) {
+      if (tasks[j].cityCoords && !isNearby(coords, tasks[j].cityCoords!, tasks[j].maxKm)) {
+        tasks[j].callback(tasks[j].cityCoords!);
+      } else {
+        tasks[j].callback(coords);
       }
+    } else if (tasks[j].cityCoords) {
+      tasks[j].callback(tasks[j].cityCoords!);
     }
   }
 
@@ -126,7 +115,7 @@ async function geocodeItinerary(itinerary: any[]): Promise<any[]> {
 
 async function callOpenRouter(apiKey: string, model: string, messages: Array<{ role: string; content: string }>) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), PER_MODEL_TIMEOUT);
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -154,7 +143,7 @@ async function callOpenRouter(apiKey: string, model: string, messages: Array<{ r
   } catch (err) {
     clearTimeout(timer);
     if (err instanceof DOMException && err.name === "AbortError") {
-      throw new Error(`${model} timed out after ${TIMEOUT_MS / 1000}s`);
+      throw new Error(`${model} timed out after ${PER_MODEL_TIMEOUT / 1000}s`);
     }
     throw err;
   }
@@ -186,29 +175,40 @@ JSON array only.`;
       { role: "user", content: prompt },
     ];
 
-    let lastError = "";
-    for (const model of MODELS) {
+    // Race ALL models in parallel — first valid response wins
+    console.log(`[generate-itinerary] Racing ${MODELS.length} models in parallel...`);
+
+    const raceAttempts = MODELS.map(async (model) => {
       try {
-        console.log(`[generate-itinerary] Trying ${model}...`);
+        console.log(`[generate-itinerary] Starting ${model}...`);
         const content = await callOpenRouter(apiKey, model, messages);
         const parsed = JSON.parse(content);
-        let itinerary = Array.isArray(parsed) ? parsed : parsed.itinerary || parsed.days || parsed;
-        console.log(`[generate-itinerary] ✓ ${model} (${Array.isArray(itinerary) ? itinerary.length : '?'} days)`);
-
-        // Fix all coordinates with real Mapbox geocoding
-        console.log(`[generate-itinerary] Geocoding all locations...`);
-        itinerary = await geocodeItinerary(itinerary);
-        console.log(`[generate-itinerary] ✓ Geocoding done`);
-
-        return NextResponse.json(itinerary);
-      } catch (err: unknown) {
-        lastError = err instanceof Error ? err.message : String(err);
-        console.warn(`[generate-itinerary] ✗ ${model}: ${lastError.slice(0, 120)}`);
-        continue;
+        const itinerary = Array.isArray(parsed) ? parsed : parsed.itinerary || parsed.days || parsed;
+        if (!Array.isArray(itinerary) || itinerary.length === 0) {
+          throw new Error(`${model} returned empty/invalid itinerary`);
+        }
+        console.log(`[generate-itinerary] ✓ ${model} won the race (${itinerary.length} days)`);
+        return itinerary;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[generate-itinerary] ✗ ${model}: ${msg.slice(0, 120)}`);
+        throw err;
       }
+    });
+
+    let itinerary;
+    try {
+      itinerary = await Promise.any(raceAttempts);
+    } catch {
+      throw new Error("All models failed or timed out. Please try again.");
     }
 
-    throw new Error(`All models failed. Last: ${lastError}`);
+    // Fix coordinates with real geocoding
+    console.log(`[generate-itinerary] Geocoding all locations...`);
+    itinerary = await geocodeItinerary(itinerary);
+    console.log(`[generate-itinerary] ✓ Done`);
+
+    return NextResponse.json(itinerary);
 
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);

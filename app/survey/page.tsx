@@ -39,11 +39,17 @@ export default function SurveyPage() {
           startingCity: surveyState.startingCity,
         };
 
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 45000); // 45s client timeout
+
         const response = await fetch("/api/analyze-survey", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
+          signal: controller.signal,
         });
+
+        clearTimeout(timeout);
         
         if (response.ok) {
            const data = await response.json();
