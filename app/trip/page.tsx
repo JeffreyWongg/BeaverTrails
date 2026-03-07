@@ -9,9 +9,8 @@ import { AnimatePresence } from "framer-motion";
 import { TripMap } from "./components/TripMap";
 import { TripSidebar } from "./components/TripSidebar";
 import { ImmersiveDrawer } from "./components/ImmersiveDrawer";
-import { TripAssistant } from "./components/TripAssistant";
 import { ImmersiveView } from "./components/ImmersiveView";
-import { TripGuide } from "./components/TripGuide";
+import { TripAssistant } from "./components/TripAssistant";
 
 export default function TripPage() {
   const { itinerary, immersiveConfig, setField } = useSurveyStore();
@@ -99,7 +98,6 @@ export default function TripPage() {
       </div>
 
       <TripAssistant onEnterImmersive={handleEnterImmersive} />
-      <TripGuide onEnterImmersive={handleEnterImmersive} />
 
       {/* Full-screen Immersive View */}
       <AnimatePresence>
