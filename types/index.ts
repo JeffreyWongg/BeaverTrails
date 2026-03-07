@@ -1,8 +1,10 @@
 export interface Day {
-  id: string;
-  date?: string;
-  activities?: string[];
-  description?: string;
+  date_offset: number;
+  city: string;
+  province: string;
+  stops: string[];
+  overnight_hotel: string;
+  drive_time_from_prev_hours: number;
 }
 
 export interface Trip {

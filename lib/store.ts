@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { Day } from '../types';
 
 export interface SurveyState {
   ageRange: string;
@@ -9,9 +10,16 @@ export interface SurveyState {
   luggageAmount: string;
   startingCity: { name: string; coordinates?: [number, number] } | null;
   
-  // Results from AI
+  // Results from AI Step 1
   travellerArchetype: string | null;
   recommendedProvinces: string[];
+
+  // Preferences Phase
+  activities: string[];
+  dreamTrip: string;
+
+  // Final Itinerary
+  itinerary: Day[];
 
   // Actions
   setField: <K extends keyof Omit<SurveyState, 'setField' | 'resetSurvey'>>(
@@ -31,6 +39,9 @@ const initialState = {
   startingCity: null,
   travellerArchetype: null,
   recommendedProvinces: [],
+  activities: [],
+  dreamTrip: '',
+  itinerary: [],
 };
 
 export const useSurveyStore = create<SurveyState>()((set) => ({
