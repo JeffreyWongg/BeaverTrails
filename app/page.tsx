@@ -59,7 +59,7 @@ export default function Home() {
         >
           <Link href="/survey">
             <motion.button
-              whileHover={{ scale: 1.05, backgroundColor: "rgba(255, 255, 255, 0.15)", borderColor: "rgba(255, 255, 255, 0.4)" }}
+              whileHover={{ scale: 1.05, backgroundColor: "rgba(200,16,46,0.12)", borderColor: "rgba(200,16,46,0.5)" }}
               whileTap={{ scale: 0.95 }}
               className="px-8 py-4 bg-white/10 backdrop-blur-md border border-white/20 text-white rounded-full font-medium text-lg tracking-wide shadow-xl transition-all duration-300 flex items-center justify-center gap-2 group"
             >

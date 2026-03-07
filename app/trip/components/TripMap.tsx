@@ -216,7 +216,7 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
           source: "route-source",
           layout: { "line-join": "round", "line-cap": "round" },
           paint: {
-            "line-color": "#064e3b",
+            "line-color": "#5a0010",
             "line-width": 6,
             "line-opacity": 0.4,
           },
@@ -228,7 +228,7 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
           source: "route-source",
           layout: { "line-join": "round", "line-cap": "round" },
           paint: {
-            "line-color": "#34d399",
+            "line-color": "#C8102E",
             "line-width": 3,
             "line-opacity": 0.9,
           },
@@ -262,13 +262,13 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
           <button
             onClick={handlePrev}
             disabled={!hasPrev}
-            className="w-10 h-10 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-700 flex items-center justify-center text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-10 h-10 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-700 flex items-center justify-center text-zinc-300 hover:text-canada-red-light hover:border-canada-red/50 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <ChevronLeft size={20} />
           </button>
 
           <div className="bg-zinc-950/80 backdrop-blur-md border border-zinc-700 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[200px]">
-            <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-400 mb-0.5">
+            <span className="text-[10px] uppercase tracking-wider font-bold text-canada-red-light mb-0.5">
               {getTypeLabel(selectedStop.type)}
             </span>
             <span className="text-sm font-bold text-white text-center leading-tight">
@@ -282,7 +282,7 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
           <button
             onClick={handleNext}
             disabled={!hasNext}
-            className="w-10 h-10 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-700 flex items-center justify-center text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-10 h-10 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-700 flex items-center justify-center text-zinc-300 hover:text-canada-red-light hover:border-canada-red/50 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <ChevronRight size={20} />
           </button>

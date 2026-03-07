@@ -26,18 +26,18 @@ export function LuggageStep() {
               key={option.value}
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: idx * 0.1 }}
+              transition={{ delay: idx * 0.1, ease: "easeOut" }}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setField("luggageAmount", option.value)}
               className={`p-6 rounded-2xl flex flex-col items-center justify-center gap-4 border transition-all ${
                 isSelected
-                  ? "border-rose-500 bg-rose-500/20 text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.3)]"
+                  ? "border-canada-red bg-canada-red-muted text-white shadow-[0_0_15px_rgba(200,16,46,0.2)]"
                   : "border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800"
               }`}
             >
-              <Icon size={48} className={isSelected ? "text-rose-400" : "text-zinc-500"} />
-              <span className="font-semibold text-xl">{option.label}</span>
+              <Icon size={48} className={isSelected ? "text-canada-red-light" : "text-zinc-500"} />
+              <span className="font-medium text-xl">{option.label}</span>
             </motion.button>
           );
         })}

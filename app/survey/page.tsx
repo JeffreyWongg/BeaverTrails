@@ -19,7 +19,7 @@ export default function SurveyPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
-  
+
   const surveyState = useSurveyStore();
 
   const handleNext = async () => {
@@ -44,7 +44,7 @@ export default function SurveyPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        
+
         if (response.ok) {
            const data = await response.json();
            surveyState.setField("travellerArchetype", data.traveller_archetype);
@@ -81,9 +81,9 @@ export default function SurveyPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-4 overflow-hidden relative">
-      {/* Background blobs for aesthetic */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-900/20 blur-[120px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-900/20 blur-[120px] rounded-full pointer-events-none" />
+      {/* Background blobs — Canada red tint, very subtle */}
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-canada-red/5 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-zinc-800/30 blur-[120px] rounded-full pointer-events-none" />
 
       <div className="w-full max-w-2xl z-10">
         {/* Progress Bar */}
@@ -92,9 +92,9 @@ export default function SurveyPage() {
             <span>Step {currentStep} of {TOTAL_STEPS}</span>
             <span>{Math.round((currentStep / TOTAL_STEPS) * 100)}% Complete</span>
           </div>
-          <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
-             <motion.div 
-               className="h-full bg-gradient-to-r from-emerald-500 to-teal-400"
+          <div className="h-[2px] w-full bg-zinc-800 rounded-full overflow-hidden">
+             <motion.div
+               className="h-full bg-canada-red"
                initial={{ width: 0 }}
                animate={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
                transition={{ duration: 0.5, ease: "easeInOut" }}
@@ -131,7 +131,7 @@ export default function SurveyPage() {
              disabled={currentStep === 1 || isSubmitting}
              className={`flex items-center gap-2 px-6 py-3 rounded-full font-medium transition-all ${
                currentStep === 1 || isSubmitting
-                ? "opacity-0 pointer-events-none" 
+                ? "opacity-0 pointer-events-none"
                 : "text-zinc-400 hover:text-white hover:bg-zinc-800"
              }`}
            >
@@ -145,7 +145,7 @@ export default function SurveyPage() {
              className={`flex items-center gap-2 px-8 py-3 rounded-full font-medium shadow-lg transition-all transform ${
                isNextDisabled()
                  ? "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-                 : "bg-white text-zinc-950 hover:bg-zinc-200 hover:scale-105 active:scale-95"
+                 : "bg-white text-zinc-950 hover:bg-zinc-100 hover:scale-105 active:scale-95"
              }`}
            >
              {isSubmitting ? (

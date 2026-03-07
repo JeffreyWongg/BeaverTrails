@@ -141,17 +141,17 @@ export function TripAssistant() {
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className="mb-4 w-96 h-[480px] bg-zinc-950 border border-emerald-900/50 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            className="mb-4 w-96 h-[480px] bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           >
             {/* Header */}
-            <div className="bg-emerald-900/30 p-4 border-b border-emerald-900/50 flex justify-between items-center backdrop-blur-md flex-shrink-0">
-              <h3 className="font-bold text-emerald-100 flex items-center gap-2">
-                <MessageSquare size={16} className="text-emerald-400" />
+            <div className="bg-zinc-900 p-4 border-b border-zinc-800 flex justify-between items-center backdrop-blur-md flex-shrink-0">
+              <h3 className="font-bold text-white flex items-center gap-2">
+                <MessageSquare size={16} className="text-canada-red-light" />
                 Beav
               </h3>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-emerald-500 hover:text-emerald-300 transition-colors"
+                className="text-zinc-500 hover:text-white transition-colors"
               >
                 <X size={18} />
               </button>
@@ -165,7 +165,7 @@ export function TripAssistant() {
                   className={`text-sm p-3 rounded-xl max-w-[85%] ${
                     msg.role === "assistant"
                       ? "bg-zinc-800/60 text-zinc-300 self-start rounded-tl-sm border border-zinc-700/40"
-                      : "bg-emerald-600/20 text-emerald-100 self-end rounded-tr-sm border border-emerald-600/30"
+                      : "bg-canada-red-muted text-white self-end rounded-tr-sm border border-canada-red/30"
                   }`}
                 >
                   {msg.content}
@@ -190,12 +190,12 @@ export function TripAssistant() {
                   onKeyDown={handleKeyDown}
                   placeholder="e.g. &quot;Remove Banff, I've been there&quot;"
                   disabled={isLoading}
-                  className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-colors disabled:opacity-50"
+                  className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-canada-red/40 transition-colors disabled:opacity-50"
                 />
                 <button
                   onClick={sendMessage}
                   disabled={isLoading || !input.trim()}
-                  className="w-10 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
+                  className="w-10 h-10 rounded-xl bg-canada-red hover:bg-canada-red-light disabled:bg-zinc-800 disabled:text-zinc-600 text-white flex items-center justify-center transition-colors flex-shrink-0"
                 >
                   <Send size={16} />
                 </button>
@@ -207,7 +207,7 @@ export function TripAssistant() {
 
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-14 h-14 rounded-full bg-emerald-500 hover:bg-emerald-400 text-zinc-950 flex items-center justify-center shadow-lg shadow-emerald-500/20 transition-transform hover:scale-105 active:scale-95"
+        className="w-14 h-14 rounded-full bg-canada-red hover:bg-canada-red-light text-white flex items-center justify-center shadow-lg shadow-canada-red/20 transition-transform hover:scale-105 active:scale-95"
       >
         {isOpen ? <X size={24} /> : <MessageSquare size={24} />}
       </button>

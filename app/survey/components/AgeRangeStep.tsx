@@ -34,11 +34,11 @@ export function AgeRangeStep() {
               onClick={() => setField("ageRange", option.value)}
               className={`p-6 rounded-2xl flex flex-col items-center justify-center gap-3 border transition-all ${
                 isSelected
-                  ? "border-emerald-500 bg-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                  ? "border-canada-red bg-canada-red-muted text-white shadow-[0_0_15px_rgba(200,16,46,0.2)]"
                   : "border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800"
               }`}
             >
-              <Icon size={32} className={isSelected ? "text-emerald-400" : "text-zinc-500"} />
+              <Icon size={32} className={isSelected ? "text-canada-red-light" : "text-zinc-500"} />
               <span className="font-medium text-lg">{option.label}</span>
             </motion.button>
           );

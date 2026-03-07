@@ -5,7 +5,7 @@ export function BudgetStep() {
   const { budgetPerPerson, setField } = useSurveyStore();
 
   const options = [
-    { value: "Budget ($50-100)", label: "Budget", desc: "$50-$100 / day", color: "text-emerald-400", bg: "bg-emerald-500/20", border: "border-emerald-500", glow: "shadow-[0_0_15px_rgba(16,185,129,0.2)]" },
+    { value: "Budget ($50-100)", label: "Budget", desc: "$50-$100 / day", color: "text-canada-red-light", bg: "bg-canada-red-muted", border: "border-canada-red", glow: "shadow-[0_0_15px_rgba(200,16,46,0.2)]" },
     { value: "Mid ($100-250)", label: "Mid-Range", desc: "$100-$250 / day", color: "text-blue-400", bg: "bg-blue-500/20", border: "border-blue-500", glow: "shadow-[0_0_15px_rgba(59,130,246,0.2)]" },
     { value: "Luxury ($250+)", label: "Luxury", desc: "$250+ / day", color: "text-purple-400", bg: "bg-purple-500/20", border: "border-purple-500", glow: "shadow-[0_0_15px_rgba(168,85,247,0.2)]" },
   ];

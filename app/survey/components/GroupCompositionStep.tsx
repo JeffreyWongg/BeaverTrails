@@ -27,19 +27,19 @@ export function GroupCompositionStep() {
               key={option.value}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.1 }}
+              transition={{ delay: idx * 0.1, ease: "easeOut" }}
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => setField("groupComposition", option.value)}
               className={`p-6 rounded-2xl flex flex-col items-center text-center gap-3 border transition-all ${
                 isSelected
-                  ? "border-amber-500 bg-amber-500/20 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.2)]"
+                  ? "border-canada-red bg-canada-red-muted text-white shadow-[0_0_15px_rgba(200,16,46,0.2)]"
                   : "border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800"
               }`}
             >
-              <Icon size={48} className={isSelected ? "text-amber-400 mb-2" : "text-zinc-600 mb-2"} />
+              <Icon size={48} className={isSelected ? "text-canada-red-light mb-2" : "text-zinc-600 mb-2"} />
               <span className="font-bold text-xl text-white">{option.label}</span>
-              <span className={`text-sm ${isSelected ? "text-amber-200/70" : "text-zinc-500"}`}>{option.desc}</span>
+              <span className={`text-sm ${isSelected ? "text-zinc-300" : "text-zinc-500"}`}>{option.desc}</span>
             </motion.button>
           );
         })}

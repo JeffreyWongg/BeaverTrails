@@ -100,7 +100,7 @@ export default function PreferencesPage() {
      return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 text-white">
             <h1 className="text-2xl text-zinc-400 mb-4">No survey data found.</h1>
-            <button onClick={() => router.push('/survey')} className="text-emerald-400 underline">
+            <button onClick={() => router.push('/survey')} className="text-canada-red-light underline">
                Take the Survey
             </button>
         </div>
@@ -111,10 +111,10 @@ export default function PreferencesPage() {
   if (isGenerating || genError) {
     return (
       <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center relative overflow-hidden">
-         <div className="absolute top-0 w-full h-1 bg-zinc-800">
+         <div className="absolute top-0 w-full h-[2px] bg-zinc-800">
             {!genError && (
-              <motion.div 
-                 className="h-full bg-emerald-500" 
+              <motion.div
+                 className="h-full bg-canada-red"
                  initial={{ width: "0%" }}
                  animate={{ width: "95%" }}
                  transition={{ duration: 60, ease: "easeOut" }}
@@ -136,7 +136,7 @@ export default function PreferencesPage() {
                 {!genError && (
                   <motion.circle 
                      cx="400" cy="300" r="10" 
-                     className="fill-emerald-400"
+                     className="fill-canada-red"
                      animate={{ 
                         scale: [1, 2, 1],
                         opacity: [1, 0.4, 1],
@@ -154,14 +154,14 @@ export default function PreferencesPage() {
                      <p className="text-zinc-400 text-lg mb-6">{genError}</p>
                      <button 
                        onClick={() => { setGenError(""); handleGenerate(); }}
-                       className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full font-semibold transition-colors"
+                       className="px-6 py-3 bg-canada-red hover:bg-canada-red-light text-white rounded-full font-medium transition-colors"
                      >
                        Try Again
                      </button>
                    </>
                  ) : (
                    <>
-                     <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-200 animate-pulse drop-shadow-lg mb-2">
+                     <h2 className="text-3xl font-bold text-white animate-pulse drop-shadow-lg mb-2">
                         Crafting Your Itinerary
                      </h2>
                      <p className="text-zinc-400 text-lg">Finding hidden gems across Canada...</p>
@@ -177,7 +177,7 @@ export default function PreferencesPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white p-6 md:p-12 lg:p-16 flex flex-col items-center relative overflow-hidden">
        {/* Background gradients */}
-      <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-emerald-900/10 blur-[150px] rounded-full pointer-events-none" />
+      <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-canada-red/5 blur-[150px] rounded-full pointer-events-none" />
       
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
@@ -186,7 +186,7 @@ export default function PreferencesPage() {
         className="max-w-5xl w-full z-10 flex flex-col items-center"
       >
         <div className="flex flex-col items-center text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-r from-emerald-300 via-teal-200 to-white drop-shadow-sm">
+          <h1 className="text-4xl md:text-5xl font-black mb-4 text-white drop-shadow-sm">
              Your Travel Profile
           </h1>
           <p className="text-lg text-zinc-400 font-light max-w-2xl">
@@ -196,23 +196,23 @@ export default function PreferencesPage() {
 
         {/* AI Results Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full mb-16">
-           <div className="p-6 rounded-3xl bg-zinc-900/40 border border-zinc-800 backdrop-blur-md flex items-center gap-6">
-              <div className="p-3 bg-amber-500/20 rounded-xl">
-                 <UserRound className="text-amber-400" size={32} />
+           <div className="p-6 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center gap-6">
+              <div className="p-3 bg-canada-red-muted rounded-xl">
+                 <UserRound className="text-canada-red-light" size={32} />
               </div>
               <div>
-                 <h2 className="text-sm uppercase tracking-wider text-zinc-500 font-bold mb-1">Your Archetype</h2>
-                 <p className="text-2xl font-light text-amber-300">{travellerArchetype}</p>
+                 <h2 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">Your Archetype</h2>
+                 <p className="text-2xl font-light text-white">{travellerArchetype}</p>
               </div>
            </div>
 
-           <div className="p-6 rounded-3xl bg-zinc-900/40 border border-zinc-800 backdrop-blur-md flex items-center gap-6">
-              <div className="p-3 bg-sky-500/20 rounded-xl">
-                 <Map className="text-sky-400" size={32} />
+           <div className="p-6 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center gap-6">
+              <div className="p-3 bg-zinc-800 rounded-xl">
+                 <Map className="text-zinc-300" size={32} />
               </div>
               <div>
-                 <h2 className="text-sm uppercase tracking-wider text-zinc-500 font-bold mb-1">Top Destinations</h2>
-                 <p className="text-xl font-light text-sky-200">{recommendedProvinces.join(", ")}</p>
+                 <h2 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">Top Destinations</h2>
+                 <p className="text-xl font-light text-white">{recommendedProvinces.join(", ")}</p>
               </div>
            </div>
         </div>
@@ -236,12 +236,12 @@ export default function PreferencesPage() {
                        whileTap={{ scale: 0.98 }}
                        onClick={() => handleToggleActivity(opt.id)}
                        className={`p-4 rounded-2xl flex flex-col items-start gap-3 border transition-all text-left ${
-                          isSelected 
-                            ? "border-emerald-500 bg-emerald-500/10 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
+                          isSelected
+                            ? "border-canada-red bg-canada-red-muted text-white shadow-[0_0_15px_rgba(200,16,46,0.15)]"
                             : "border-zinc-800 bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:border-zinc-700"
                        }`}
                     >
-                       <Icon size={24} className={isSelected ? "text-emerald-400" : "text-zinc-500"} />
+                       <Icon size={24} className={isSelected ? "text-canada-red-light" : "text-zinc-500"} />
                        <span className="font-medium">{opt.label}</span>
                     </motion.button>
                  );
@@ -256,7 +256,7 @@ export default function PreferencesPage() {
               value={dreamTrip}
               onChange={(e) => setField("dreamTrip", e.target.value)}
               placeholder="e.g. I want to see a moose, avoid large crowds, and visit a local brewery..."
-              className="w-full h-32 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none transition-all placeholder:text-zinc-600"
+              className="w-full h-32 bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-white focus:outline-none focus:ring-2 focus:ring-canada-red/50 resize-none transition-all placeholder:text-zinc-600"
            />
         </div>
 
@@ -274,10 +274,10 @@ export default function PreferencesPage() {
            <button 
              onClick={handleGenerate}
              disabled={activities.length === 0}
-             className={`px-8 py-4 rounded-full font-bold text-lg shadow-xl transition-all transform ${
+             className={`px-8 py-4 rounded-full font-medium text-lg shadow-xl transition-all transform ${
                 activities.length === 0 
                   ? "bg-zinc-800 text-zinc-600 cursor-not-allowed"
-                  : "bg-white text-zinc-950 hover:bg-zinc-200 hover:scale-105 active:scale-95"
+                  : "bg-white text-zinc-950 hover:bg-zinc-100 hover:scale-105 active:scale-95"
              }`}
            >
              Generate My Itinerary

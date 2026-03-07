@@ -52,20 +52,20 @@ export function AccessibilityStep() {
               onClick={() => handleToggle(option.value)}
               className={`p-5 rounded-xl flex items-center gap-4 border transition-all text-left ${
                 isSelected
-                  ? "border-teal-500 bg-teal-500/20 text-teal-300 shadow-[0_0_15px_rgba(20,184,166,0.2)]"
+                  ? "border-canada-red bg-canada-red-muted text-white shadow-[0_0_15px_rgba(200,16,46,0.15)]"
                   : "border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800"
               }`}
             >
-              <div className={`p-3 rounded-full ${isSelected ? 'bg-teal-500/30' : 'bg-zinc-800'}`}>
-                 <Icon size={24} className={isSelected ? "text-teal-400" : "text-zinc-500"} />
+              <div className={`p-3 rounded-full ${isSelected ? 'bg-canada-red/20' : 'bg-zinc-800'}`}>
+                 <Icon size={24} className={isSelected ? "text-canada-red-light" : "text-zinc-500"} />
               </div>
               <span className="font-medium text-lg flex-1">{option.label}</span>
-              
+
               <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${
-                isSelected ? "border-teal-400 bg-teal-500" : "border-zinc-600"
+                isSelected ? "border-canada-red bg-canada-red" : "border-zinc-600"
               }`}>
                 {isSelected && (
-                   <motion.svg initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-4 h-4 text-zinc-950" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                   <motion.svg initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                    </motion.svg>
                 )}

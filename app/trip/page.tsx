@@ -50,7 +50,7 @@ export default function TripPage() {
      return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 text-white">
             <h1 className="text-2xl text-zinc-400 mb-4">No itinerary generated.</h1>
-            <button onClick={() => router.push('/preferences')} className="text-emerald-400 underline">
+            <button onClick={() => router.push('/preferences')} className="text-canada-red-light underline">
                Go Back
             </button>
         </div>

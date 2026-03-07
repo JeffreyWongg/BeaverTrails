@@ -24,7 +24,7 @@ export function ImmersiveDrawer({ stop, onClose }: ImmersiveDrawerProps) {
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: "-100%", opacity: 0 }}
           transition={{ type: "spring", damping: 25, stiffness: 200 }}
-          className="absolute top-0 left-0 h-full w-[380px] max-w-[80vw] bg-zinc-950/95 backdrop-blur-xl border-r border-emerald-900/50 z-30 shadow-2xl overflow-y-auto"
+          className="absolute top-0 left-0 h-full w-[380px] max-w-[80vw] bg-zinc-950/95 backdrop-blur-xl border-r border-zinc-800 z-30 shadow-2xl overflow-y-auto"
         >
           {/* Real satellite image of the location */}
           <div className="relative h-52 w-full bg-zinc-900 overflow-hidden">
@@ -43,7 +43,7 @@ export function ImmersiveDrawer({ stop, onClose }: ImmersiveDrawerProps) {
              </button>
 
              <div className="absolute bottom-4 left-6 z-20">
-                <span className="px-2 py-1 text-[10px] uppercase tracking-wider font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-md mb-2 inline-block">
+                <span className="px-2 py-1 text-[10px] uppercase tracking-wider font-bold bg-canada-red/20 text-white border border-canada-red/30 rounded-md mb-2 inline-block">
                    {stop.type}
                 </span>
                 <h2 className="text-2xl font-black text-white px-1 leading-tight drop-shadow-lg">{stop.name}</h2>
@@ -60,7 +60,7 @@ export function ImmersiveDrawer({ stop, onClose }: ImmersiveDrawerProps) {
 
              {/* Location coordinates */}
              <div className="flex bg-zinc-900/50 p-4 rounded-xl border border-zinc-800/50 items-start gap-3">
-                <MapPin className="text-emerald-400 mt-0.5 flex-shrink-0" size={18} />
+                <MapPin className="text-canada-red-light mt-0.5 flex-shrink-0" size={18} />
                 <div>
                   <p className="text-sm font-bold text-white mb-1">Location</p>
                   <p className="text-xs text-zinc-400 font-mono">Lat: {stop.coordinates[1].toFixed(4)}</p>
