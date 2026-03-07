@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import { X, Mic, MicOff, Volume2, VolumeX, ChevronLeft, ChevronRight } from "lucide-react";
 import { useSurveyStore } from "../../../lib/store";
 import { Stop } from "../../../types";
 
@@ -38,15 +38,17 @@ interface ImmersiveViewProps {
   stop: Stop;
   initialTime: string;
   initialSeason: string;
-  hasStreetView: boolean;
+  stops: Stop[];
+  initialIndex: number;
   onClose: () => void;
 }
 
 export function ImmersiveView({
-  stop,
+  stop: initialStop,
   initialTime,
   initialSeason,
-  hasStreetView,
+  stops,
+  initialIndex,
   onClose,
 }: ImmersiveViewProps) {
   const streetViewRef = useRef<HTMLDivElement>(null);
@@ -63,12 +65,22 @@ export function ImmersiveView({
   const [muteAmbient, setMuteAmbient] = useState(false);
   const [qaOverlay, setQaOverlay] = useState<{ q: string; a: string } | null>(null);
   const [qaFading, setQaFading] = useState(false);
+  const [textQuestion, setTextQuestion] = useState("");
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [currentStop, setCurrentStop] = useState<Stop>(initialStop);
 
   const { streetViewCoverage } = useSurveyStore();
+
+  useEffect(() => {
+    setCurrentIndex(initialIndex);
+    setCurrentStop(initialStop);
+  }, [initialIndex, initialStop]);
+
   const stopKey =
-    stop.id ||
-    `${stop.name}_${stop.coordinates[0].toFixed(4)}_${stop.coordinates[1].toFixed(4)}`;
-  const svAvailable = hasStreetView || streetViewCoverage[stopKey] === true;
+    currentStop.id ||
+    `${currentStop.name}_${currentStop.coordinates[0].toFixed(4)}_${currentStop.coordinates[1].toFixed(4)}`;
+  const svAvailable = streetViewCoverage[stopKey] === true;
 
   // Combined CSS filter
   const combinedFilter = () => {
@@ -83,7 +95,7 @@ export function ImmersiveView({
   // Initialize ambient audio
   useEffect(() => {
     const soundKey = Object.keys(AMBIENT_SOUNDS).find((k) =>
-      stop.type.toLowerCase().includes(k)
+      currentStop.type.toLowerCase().includes(k)
     ) || "default";
     const url = AMBIENT_SOUNDS[soundKey];
 
@@ -116,7 +128,7 @@ export function ImmersiveView({
         }
       }, 50);
     };
-  }, [stop.type]);
+  }, [currentStop.type]);
 
   // Mute/unmute ambient
   useEffect(() => {
@@ -133,7 +145,7 @@ export function ImmersiveView({
       if (!streetViewRef.current) return;
       try {
         new google.maps.StreetViewPanorama(streetViewRef.current, {
-          position: { lat: stop.coordinates[1], lng: stop.coordinates[0] },
+          position: { lat: currentStop.coordinates[1], lng: currentStop.coordinates[0] },
           pov: { heading: 0, pitch: 0 },
           zoom: 1,
           disableDefaultUI: true,
@@ -155,7 +167,7 @@ export function ImmersiveView({
     }
 
     return () => {};
-  }, [svAvailable, stop.coordinates]);
+  }, [svAvailable, currentStop]);
 
   // Initialize Mapbox fallback
   useEffect(() => {
@@ -171,7 +183,7 @@ export function ImmersiveView({
       const mapInstance = new mapboxgl.default.Map({
         container: mapboxRef.current,
         style: "mapbox://styles/mapbox/satellite-streets-v12",
-        center: stop.coordinates,
+        center: currentStop.coordinates,
         zoom: 16,
         pitch: 70,
         bearing: 0,
@@ -197,8 +209,7 @@ export function ImmersiveView({
         (map as { remove: () => void }).remove();
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [svAvailable]);
+  }, [svAvailable, currentStop]);
 
   // Fetch and play narration
   const playNarration = useCallback(
@@ -210,8 +221,8 @@ export function ImmersiveView({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             stopName: stop.name,
-            stopType: stop.type,
-            stopNotes: stop.notes || stop.description || "",
+            stopType: currentStop.type,
+            stopNotes: currentStop.notes || currentStop.description || "",
             timeOfDay: time,
             season: sea,
           }),
@@ -240,7 +251,7 @@ export function ImmersiveView({
         setIsNarrating(false);
       }
     },
-    [stop]
+    [currentStop]
   );
 
   // Auto-play narration on mount
@@ -261,6 +272,50 @@ export function ImmersiveView({
   };
 
   // Voice Q&A
+  const fetchAssistantAnswer = useCallback(
+    async (prompt: string) => {
+      const res = await fetch("/api/trip-assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: "user",
+              content: `[At ${currentStop.name}, ${timeOfDay}, ${season}]: ${prompt}`,
+            },
+          ],
+          trip: { id: "current", title: currentStop.name, days: [], travellerProfile: "" },
+          travelerProfile: "",
+        }),
+      });
+
+      let answer = "";
+      const reader = res.body?.getReader();
+      if (reader) {
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          for (const line of chunk.split("\n")) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith("data: ")) continue;
+            const data = trimmed.slice(6);
+            if (data === "[DONE]") break;
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.token) answer += parsed.token;
+            } catch {
+              // ignore malformed chunks
+            }
+          }
+        }
+      }
+      return answer;
+    },
+    [currentStop, timeOfDay, season]
+  );
+
   const handleMic = useCallback(async () => {
     if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
       alert("Speech recognition not supported in this browser.");
@@ -274,61 +329,74 @@ export function ImmersiveView({
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
-    setIsListening(true);
+      setIsListening(true);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recognition.onresult = async (event: any) => {
       setIsListening(false);
       const transcript = event.results[0][0].transcript;
 
       try {
-        const res = await fetch("/api/trip-assistant", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messages: [
-              {
-                role: "user",
-                content: `[At ${stop.name}, ${timeOfDay}, ${season}]: ${transcript}`,
-              },
-            ],
-            trip: { id: "current", title: stop.name, days: [], travellerProfile: "" },
-            travelerProfile: "",
-          }),
-        });
+          const answer = await fetchAssistantAnswer(transcript);
 
-        let answer = "";
-        const reader = res.body?.getReader();
-        if (reader) {
-          const decoder = new TextDecoder();
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value);
-            for (const line of chunk.split("\n")) {
-              if (line.startsWith("data: ")) {
-                const data = line.slice(6);
-                if (data === "[DONE]") break;
-                try {
-                  const parsed = JSON.parse(data);
-                  if (parsed.token) answer += parsed.token;
-                } catch {}
-              }
-            }
+          // Show overlay for 5s
+          setQaOverlay({ q: transcript, a: answer });
+          setQaFading(false);
+
+          // Play response via ElevenLabs
+          const speakRes = await fetch("/api/speak", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              stopName: currentStop.name,
+              stopType: currentStop.type,
+              stopNotes: answer,
+              timeOfDay,
+              season,
+            }),
+          });
+
+          const contentType = speakRes.headers.get("Content-Type") || "";
+          if (contentType.includes("audio")) {
+            const blob = await speakRes.blob();
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            audio.onended = () => URL.revokeObjectURL(url);
+            await audio.play();
           }
-        }
 
-        // Show overlay for 5s
-        setQaOverlay({ q: transcript, a: answer });
+          setTimeout(() => {
+            setQaFading(true);
+            setTimeout(() => setQaOverlay(null), 1000);
+          }, 5000);
+        } catch {
+          setIsListening(false);
+        }
+    };
+
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+    recognition.start();
+  }, [fetchAssistantAnswer]);
+
+  const handleTextAsk = useCallback(
+    async (event: React.FormEvent) => {
+      event.preventDefault();
+      const trimmed = textQuestion.trim();
+      if (!trimmed) return;
+      setIsChatLoading(true);
+      try {
+        const answer = await fetchAssistantAnswer(trimmed);
+
+        setQaOverlay({ q: trimmed, a: answer });
         setQaFading(false);
 
-        // Play response via ElevenLabs
         const speakRes = await fetch("/api/speak", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            stopName: stop.name,
-            stopType: stop.type,
+            stopName: currentStop.name,
+            stopType: currentStop.type,
             stopNotes: answer,
             timeOfDay,
             season,
@@ -348,15 +416,14 @@ export function ImmersiveView({
           setQaFading(true);
           setTimeout(() => setQaOverlay(null), 1000);
         }, 5000);
-      } catch {
-        setIsListening(false);
-      }
-    };
 
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
-    recognition.start();
-  }, [stop, timeOfDay, season]);
+        setTextQuestion("");
+      } finally {
+        setIsChatLoading(false);
+      }
+    },
+    [textQuestion, fetchAssistantAnswer, currentStop.name, currentStop.type, timeOfDay, season]
+  );
 
   // Stop all audio immediately
   const killAllAudio = useCallback(() => {
@@ -384,6 +451,23 @@ export function ImmersiveView({
 
   const filterStyle = combinedFilter();
 
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex >= 0 && currentIndex < stops.length - 1;
+
+  const handlePrevStop = () => {
+    if (!hasPrev) return;
+    const nextIndex = currentIndex - 1;
+    setCurrentIndex(nextIndex);
+    setCurrentStop(stops[nextIndex]);
+  };
+
+  const handleNextStop = () => {
+    if (!hasNext) return;
+    const nextIndex = currentIndex + 1;
+    setCurrentIndex(nextIndex);
+    setCurrentStop(stops[nextIndex]);
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -403,17 +487,86 @@ export function ImmersiveView({
           <div ref={mapboxRef} className="w-full h-full" />
         )}
       </div>
+      {/* Left sidebar: description + navigation + chat */}
+      <div className="absolute inset-y-6 left-6 z-10 w-[320px] pointer-events-none">
+        <div className="h-full bg-zinc-950/85 backdrop-blur-xl rounded-3xl border border-zinc-800 flex flex-col p-5 space-y-4 pointer-events-auto">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-emerald-400 font-semibold">
+                  {currentStop.type === "hotel"
+                    ? "Overnight Stay"
+                    : currentStop.type === "airport"
+                    ? "Flight Hub"
+                    : "Trip Stop"}
+                </p>
+                <h2 className="text-lg font-semibold text-white leading-snug line-clamp-2">
+                  {currentStop.name}
+                </h2>
+              </div>
+              {isNarrating && (
+                <span className="flex flex-col items-end gap-1 text-red-500 text-[10px] font-semibold">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    Live
+                  </span>
+                  <span className="text-zinc-400 text-[9px]">Narration</span>
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-zinc-500">
+              Stop {currentIndex + 1} of {stops.length}
+            </p>
+          </div>
 
-      {/* Top-left HUD */}
-      <div className="absolute top-6 left-6 z-10 flex items-center gap-3">
-        <div className="bg-zinc-950/80 backdrop-blur-md rounded-xl px-4 py-2 flex items-center gap-2">
-          <span className="text-white font-bold text-sm">{stop.name}</span>
-          {isNarrating && (
-            <span className="flex items-center gap-1 text-red-500 text-xs font-bold">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              Live
-            </span>
-          )}
+          <div className="flex-1 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 p-3 overflow-hidden">
+            <div className="h-full overflow-y-auto pr-1 space-y-2">
+              <p className="text-[12px] text-zinc-200 leading-relaxed">
+                {currentStop.description || currentStop.notes || "A memorable stop on your BeaverTrails adventure."}
+              </p>
+              <p className="text-[11px] text-zinc-500">
+                Ask Beav about history, hidden gems, or what to look for in this view.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <button
+                onClick={handlePrevStop}
+                disabled={!hasPrev}
+                className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-full border border-zinc-700 bg-zinc-900/70 text-[11px] text-zinc-200 hover:border-emerald-500 hover:text-emerald-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft size={14} />
+                Prev stop
+              </button>
+              <button
+                onClick={handleNextStop}
+                disabled={!hasNext}
+                className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-full border border-zinc-700 bg-zinc-900/70 text-[11px] text-zinc-200 hover:border-emerald-500 hover:text-emerald-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                Next stop
+                <ChevronRight size={14} />
+              </button>
+            </div>
+
+            <form onSubmit={handleTextAsk} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={textQuestion}
+                onChange={(e) => setTextQuestion(e.target.value)}
+                placeholder="Ask Beav about this view..."
+                className="flex-1 rounded-full bg-zinc-900/80 border border-zinc-700 px-3 py-1.5 text-[12px] text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/70 focus:border-emerald-500"
+              />
+              <button
+                type="submit"
+                disabled={!textQuestion.trim() || isChatLoading}
+                className="px-3 py-1.5 rounded-full bg-emerald-500 text-[11px] font-semibold text-black hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isChatLoading ? "Asking…" : "Ask"}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
 
