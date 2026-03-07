@@ -25,3 +25,17 @@ body {
     text-wrap: balance;
   }
 }
+
+@media print {
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* framer-motion applies opacity:0 / translateY inline on elements that haven't
+     animated yet. !important is required to override inline styles. */
+  body * {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
