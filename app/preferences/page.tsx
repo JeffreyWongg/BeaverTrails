@@ -47,13 +47,26 @@ export default function PreferencesPage() {
      setIsGenerating(true);
      
      try {
-         // Gather full store state
-         const storeState = useSurveyStore.getState();
+         // Gather only data fields from the store
+         const s = useSurveyStore.getState();
+         const payload = {
+           ageRange: s.ageRange,
+           accessibilityNeeds: s.accessibilityNeeds,
+           groupComposition: s.groupComposition,
+           tripDuration: s.tripDuration,
+           budgetPerPerson: s.budgetPerPerson,
+           luggageAmount: s.luggageAmount,
+           startingCity: s.startingCity,
+           travellerArchetype: s.travellerArchetype,
+           recommendedProvinces: s.recommendedProvinces,
+           activities: s.activities,
+           dreamTrip: s.dreamTrip,
+         };
          
          const response = await fetch("/api/generate-itinerary", {
              method: "POST",
              headers: { "Content-Type": "application/json" },
-             body: JSON.stringify(storeState),
+             body: JSON.stringify(payload),
          });
 
          if (response.ok) {
@@ -61,7 +74,8 @@ export default function PreferencesPage() {
              setField("itinerary", itinerary);
              router.push("/trip");
          } else {
-             console.error("Failed to generate itinerary");
+             const errorData = await response.text();
+             console.error("Failed to generate itinerary:", response.status, errorData);
              setIsGenerating(false);
          }
      } catch (err) {

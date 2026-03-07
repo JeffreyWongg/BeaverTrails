@@ -138,19 +138,6 @@ export function TripMap({ onStopClick, routingMode }: TripMapProps) {
          ]
        };
 
-       // If routingMode is directions, we theoretically call Mapbox Directions API here.
-       // However, for multiple stops, Directions API expects max 25 waypoints. 
-       // For this simulation/demo we will fallback to straight lines if it exceeds or just mock the route via straight lines if omitted.
-       // To do true Directions: 
-       /* 
-         const coords = coordinatesList.map(c => c.join(',')).join(';');
-         const res = await fetch(`https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?geometries=geojson&access_token=${mapboxgl.accessToken}`);
-         const data = await res.json();
-         geojson.features[0].geometry = data.routes[0].geometry;
-       */
-       // To keep it clean and robust, we'll stick to straight lines for both modes unless explicitly called. 
-       // We'll mimic the "dash animation" along the geojson.
-
        map.addSource("route-source", {
          type: "geojson",
          data: geojson,
