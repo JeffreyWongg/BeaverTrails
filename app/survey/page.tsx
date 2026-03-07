@@ -29,10 +29,20 @@ export default function SurveyPage() {
       // Submit survey
       setIsSubmitting(true);
       try {
+        const payload = {
+          ageRange: surveyState.ageRange,
+          accessibilityNeeds: surveyState.accessibilityNeeds,
+          groupComposition: surveyState.groupComposition,
+          tripDuration: surveyState.tripDuration,
+          budgetPerPerson: surveyState.budgetPerPerson,
+          luggageAmount: surveyState.luggageAmount,
+          startingCity: surveyState.startingCity,
+        };
+
         const response = await fetch("/api/analyze-survey", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(surveyState),
+          body: JSON.stringify(payload),
         });
         
         if (response.ok) {
@@ -41,7 +51,8 @@ export default function SurveyPage() {
            surveyState.setField("recommendedProvinces", data.recommended_provinces);
            router.push("/preferences");
         } else {
-           console.error("Survey submission failed");
+           const errorData = await response.text();
+           console.error("Survey submission failed:", response.status, errorData);
            setIsSubmitting(false);
         }
       } catch (error) {
