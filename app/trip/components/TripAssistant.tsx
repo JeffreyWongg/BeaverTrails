@@ -10,6 +10,10 @@ interface ChatMessage {
   content: string;
 }
 
+interface TripAssistantProps {
+  onEnterImmersive?: (stop: import("../../../types").Stop, time: string, season: string) => void;
+}
+
 function buildRationale(itinerary: import("../../../types").Day[], archetype: string | null): string {
   if (!itinerary || itinerary.length === 0) return "";
 
@@ -36,7 +40,8 @@ function buildRationale(itinerary: import("../../../types").Day[], archetype: st
   return msg;
 }
 
-export function TripAssistant() {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function TripAssistant({ onEnterImmersive: _onEnterImmersive }: TripAssistantProps = {}) {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
