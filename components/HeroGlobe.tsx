@@ -14,10 +14,10 @@ export default function HeroGlobe() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const updateDimensions = useCallback(() => {
-    // Globe should be large enough to crop at edges for dramatic effect
+    // Globe sized large for dramatic cropping at viewport edges
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const size = Math.max(vw, vh) * 1.3;
+    const size = Math.max(vw, vh) * 1.4;
     setDimensions({ width: size, height: size });
   }, []);
 
@@ -33,12 +33,12 @@ export default function HeroGlobe() {
       className="absolute inset-0 overflow-hidden"
       style={{ zIndex: 0 }}
     >
-      {/* Position the globe so it sits bottom-right, partially cropped */}
+      {/* Center the globe on the bottom-right corner of the viewport */}
       <div
         className="absolute"
         style={{
-          right: `-${dimensions.width * 0.08}px`,
-          bottom: `-${dimensions.height * 0.25}px`,
+          right: `-${dimensions.width * 0.38}px`,
+          bottom: `-${dimensions.height * 0.42}px`,
           width: `${dimensions.width}px`,
           height: `${dimensions.height}px`,
         }}

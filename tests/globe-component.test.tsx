@@ -128,7 +128,7 @@ describe("GlobeComponent", () => {
     render(<GlobeComponent width={800} height={800} />);
     const globe = screen.getByTestId("globe-mock");
     expect(globe.getAttribute("data-show-atmosphere")).toBe("true");
-    expect(globe.getAttribute("data-atmosphere-color")).toBe("#1a6eb5");
+    expect(globe.getAttribute("data-atmosphere-color")).toBe("#3a9ad9");
   });
 
   it("passes ring data for 4 Canadian cities", () => {

@@ -161,9 +161,9 @@ describe("Color Values (no NaN, no null)", () => {
   const rgbaPattern = /^rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*[\d.]+\s*\)$/;
 
   // Reproduce the EXACT accessor functions from Globe.tsx
-  const polygonCapColor = () => "rgba(64, 180, 220, 0.3)";
-  const polygonSideColor = () => "rgba(64, 180, 220, 0.15)";
-  const polygonStrokeColor = () => "rgba(64, 180, 220, 0.7)";
+  const polygonCapColor = () => "rgba(80, 200, 240, 0.35)";
+  const polygonSideColor = () => "rgba(80, 200, 240, 0.2)";
+  const polygonStrokeColor = () => "rgba(120, 220, 255, 0.8)";
   const ringColor = () => "rgba(64, 180, 220, 0.6)";
 
   it("polygonCapColor returns valid rgba", () => {

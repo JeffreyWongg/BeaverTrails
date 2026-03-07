@@ -56,8 +56,7 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
     // Set camera to focus on Canada
     globe.pointOfView({ lat: 56, lng: -106, altitude: 2.0 }, 0);
 
-    // Customize the globe material for a dark, cinematic look
-    // globeMaterial() exists at runtime but isn't in the TS types
+    // Brighten globe material for visibility while keeping cinematic feel
     try {
       const globeAny = globe as unknown as Record<string, () => Record<string, unknown>>;
       if (typeof globeAny.globeMaterial === "function") {
@@ -67,25 +66,25 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
           emissiveIntensity: number;
           shininess: number;
         };
-        mat.color.set("#1a2a3a");
-        mat.emissive.set("#0a1628");
-        mat.emissiveIntensity = 0.2;
-        mat.shininess = 0.7;
+        mat.color.set("#4a7a9b");
+        mat.emissive.set("#1a3a5a");
+        mat.emissiveIntensity = 0.6;
+        mat.shininess = 15;
       }
     } catch {
       console.warn("[Globe] Could not customize globe material");
     }
 
-    // Reduce default light intensity for moodier look
+    // Keep lights reasonably bright
     try {
       const scene = globe.scene();
       if (scene) {
         scene.children.forEach((child: { type?: string; intensity?: number }) => {
           if (child.type === "DirectionalLight" && child.intensity !== undefined) {
-            child.intensity = 0.6;
+            child.intensity = 1.2;
           }
           if (child.type === "AmbientLight" && child.intensity !== undefined) {
-            child.intensity = 0.4;
+            child.intensity = 0.8;
           }
         });
       }
@@ -103,14 +102,14 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
       globeImageUrl="//unpkg.com/three-globe/example/img/earth-dark.jpg"
       backgroundColor="rgba(0,0,0,0)"
       showAtmosphere={true}
-      atmosphereColor="#1a6eb5"
-      atmosphereAltitude={0.12}
+      atmosphereColor="#3a9ad9"
+      atmosphereAltitude={0.15}
       // Canada polygon highlight
       polygonsData={canadaFeatures}
       polygonAltitude={0.012}
-      polygonCapColor={() => "rgba(64, 180, 220, 0.3)"}
-      polygonSideColor={() => "rgba(64, 180, 220, 0.15)"}
-      polygonStrokeColor={() => "rgba(64, 180, 220, 0.7)"}
+      polygonCapColor={() => "rgba(80, 200, 240, 0.35)"}
+      polygonSideColor={() => "rgba(80, 200, 240, 0.2)"}
+      polygonStrokeColor={() => "rgba(120, 220, 255, 0.8)"}
       polygonLabel={() => ""}
       // Pulsing rings on Canadian cities
       ringsData={CANADIAN_RINGS}
@@ -121,7 +120,9 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
       ringPropagationSpeed="propagationSpeed"
       ringRepeatPeriod="repeatPeriod"
       // Interaction & rotation
-      enablePointerInteraction={false}
+      enablePointerInteraction={true}
+      autoRotate={true}
+      autoRotateSpeed={0.4}
       animateIn={false}
       onGlobeReady={handleGlobeReady}
     />
