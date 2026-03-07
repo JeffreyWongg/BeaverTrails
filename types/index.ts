@@ -1,8 +1,12 @@
 export interface Stop {
+  id?: string;
   name: string;
   type: 'park' | 'restaurant' | 'hotel' | 'attraction' | 'airport' | 'other';
   coordinates: [number, number]; // [longitude, latitude]
   description?: string; // Short 1-2 sentence description
+  address?: string;
+  estimatedCost?: string;
+  notes?: string;
 }
 
 export interface Day {
@@ -27,4 +31,16 @@ export interface Trip {
   days: Day[];
   travellerProfile: string;
   totalCostEstimate: number;
+  budgetTier?: string;
+}
+
+export interface CostEstimate {
+  day: number;
+  city: string;
+  accommodationLow: number;
+  accommodationHigh: number;
+  foodLow: number;
+  foodHigh: number;
+  transport: number;
+  activities: number;
 }

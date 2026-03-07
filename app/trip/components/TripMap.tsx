@@ -6,6 +6,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import { useSurveyStore } from "../../../lib/store";
 import { Stop } from "../../../types";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { checkStreetViewCoverage, getStopKey } from "../../../lib/streetView";
 
 interface TripMapProps {
   onStopClick: (stop: Stop) => void;
@@ -18,10 +19,12 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
+  // Store DOM elements by stop key so we can append badges later
+  const markerElemsRef = useRef<Map<string, HTMLElement>>(new Map());
   const onStopClickRef = useRef(onStopClick);
   onStopClickRef.current = onStopClick;
 
-  const { itinerary } = useSurveyStore();
+  const { itinerary, streetViewCoverage, setField } = useSurveyStore();
   const [mapLoaded, setMapLoaded] = useState(false);
 
   const currentIndex = selectedStop
@@ -109,7 +112,7 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
     };
   }, [itinerary]);
 
-  // Markers & route
+  // Markers, route, and Street View badge checks
   useEffect(() => {
     if (!mapLoaded || !mapRef.current || !itinerary) return;
     const map = mapRef.current;
@@ -125,7 +128,12 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
       }
     };
 
-    const addMarker = (coords: [number, number], emoji: string, size: string, clickHandler?: () => void) => {
+    const addMarker = (
+      stop: Stop,
+      emoji: string,
+      size: string,
+      clickHandler?: () => void
+    ) => {
       const el = document.createElement("div");
       el.className = `custom-marker ${size} cursor-pointer hover:scale-125 transition-transform duration-200`;
       el.style.filter = "drop-shadow(0 2px 4px rgba(0,0,0,0.4))";
@@ -133,56 +141,55 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
       if (clickHandler) el.addEventListener("click", clickHandler);
 
       const marker = new mapboxgl.Marker({ element: el })
-        .setLngLat(coords)
+        .setLngLat(stop.coordinates)
         .addTo(map);
 
       markersRef.current.push(marker);
+      markerElemsRef.current.set(getStopKey(stop), el);
     };
 
     const updateMapData = () => {
       // Clean up previous markers
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
+      markerElemsRef.current.clear();
 
-      // Route connects city centers only — logical travel path
       const routeCoords: number[][] = [];
 
       itinerary.forEach((day) => {
-        // Add city to route path
         if (day.city_coordinates) {
           routeCoords.push(day.city_coordinates);
         }
 
-        // Activity stop markers
         day.stops?.forEach((stop) => {
           if (stop.coordinates && stop.coordinates.length === 2) {
-            addMarker(stop.coordinates, getEmoji(stop.type), "text-2xl", () => {
+            addMarker(stop, getEmoji(stop.type), "text-2xl", () => {
               onStopClickRef.current(stop);
             });
           }
         });
 
-        // Hotel marker
         if (day.overnight_hotel_coordinates && day.overnight_hotel_coordinates.length === 2) {
-          addMarker(day.overnight_hotel_coordinates, "🛏️", "text-xl", () => {
-            onStopClickRef.current({
-              name: day.overnight_hotel,
-              type: "hotel",
-              coordinates: day.overnight_hotel_coordinates as [number, number],
-              description: `Your overnight stay in ${day.city}.`,
-            });
+          const hotelStop: Stop = {
+            name: day.overnight_hotel,
+            type: "hotel",
+            coordinates: day.overnight_hotel_coordinates,
+            description: `Your overnight stay in ${day.city}.`,
+          };
+          addMarker(hotelStop, "🛏️", "text-xl", () => {
+            onStopClickRef.current(hotelStop);
           });
         }
 
-        // Airport marker
         if (day.airport && day.airport.coordinates && day.airport.coordinates.length === 2) {
-          addMarker(day.airport.coordinates, "✈️", "text-2xl", () => {
-            onStopClickRef.current({
-              name: day.airport!.name,
-              type: "airport",
-              coordinates: day.airport!.coordinates,
-              description: `Arrival airport for your flight into ${day.city}.`,
-            });
+          const airportStop: Stop = {
+            name: day.airport.name,
+            type: "airport",
+            coordinates: day.airport.coordinates,
+            description: `Arrival airport for your flight into ${day.city}.`,
+          };
+          addMarker(airportStop, "✈️", "text-2xl", () => {
+            onStopClickRef.current(airportStop);
           });
         }
       });
@@ -196,7 +203,6 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
         // Layers may not exist yet
       }
 
-      // Draw route line connecting cities in order
       if (routeCoords.length >= 2) {
         map.addSource("route-source", {
           type: "geojson",
@@ -234,6 +240,48 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
           },
         });
       }
+
+      // Run Street View checks in background after markers are placed
+      runStreetViewChecks();
+    };
+
+    // Collect all activity stops for Street View checks
+    const runStreetViewChecks = async () => {
+      const stopsToCheck: Stop[] = [];
+      itinerary.forEach((day) => {
+        day.stops?.forEach((stop) => {
+          if (stop.coordinates && stop.coordinates.length === 2) {
+            stopsToCheck.push(stop);
+          }
+        });
+      });
+
+      const results = await Promise.all(
+        stopsToCheck.map(async (stop) => {
+          const [lng, lat] = stop.coordinates;
+          const hasCoverage = await checkStreetViewCoverage(lat, lng);
+          return { stop, hasCoverage };
+        })
+      );
+
+      const coverageMap: Record<string, boolean> = { ...streetViewCoverage };
+      results.forEach(({ stop, hasCoverage }) => {
+        const key = getStopKey(stop);
+        coverageMap[key] = hasCoverage;
+        if (hasCoverage) {
+          const el = markerElemsRef.current.get(key);
+          if (el) {
+            const badge = document.createElement("span");
+            badge.textContent = "📷";
+            badge.style.cssText =
+              "position:absolute;top:-6px;right:-6px;font-size:10px;line-height:1;pointer-events:none;";
+            el.style.position = "relative";
+            el.appendChild(badge);
+          }
+        }
+      });
+
+      setField("streetViewCoverage", coverageMap);
     };
 
     if (map.isStyleLoaded()) {
@@ -241,6 +289,7 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
     } else {
       map.once("style.load", updateMapData);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapLoaded, itinerary]);
 
   const getTypeLabel = (type: string) => {
