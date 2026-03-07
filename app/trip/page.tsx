@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useSurveyStore } from "../../lib/store";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -8,6 +9,14 @@ import { MapPin, Car, BedDouble, Calendar } from "lucide-react";
 export default function TripPage() {
   const { itinerary, travellerArchetype } = useSurveyStore();
   const router = useRouter();
+
+  useEffect(() => {
+    const handleBeforePrint = () => {
+      document.getAnimations().forEach((a) => a.finish());
+    };
+    window.addEventListener("beforeprint", handleBeforePrint);
+    return () => window.removeEventListener("beforeprint", handleBeforePrint);
+  }, []);
 
   if (!itinerary || itinerary.length === 0) {
      return (
@@ -21,10 +30,10 @@ export default function TripPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white p-6 md:p-12 lg:p-16 relative overflow-hidden">
+    <div className="min-h-screen bg-zinc-950 text-white p-6 md:p-12 lg:p-16 relative overflow-hidden print:overflow-visible print:min-h-0">
        {/* Background gradients */}
-      <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[60%] bg-emerald-900/10 blur-[150px] rounded-full pointer-events-none fixed" />
-      <div className="absolute bottom-[-20%] left-[-10%] w-[60%] h-[60%] bg-blue-900/10 blur-[150px] rounded-full pointer-events-none fixed" />
+      <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[60%] bg-emerald-900/10 blur-[150px] rounded-full pointer-events-none fixed print:hidden" />
+      <div className="absolute bottom-[-20%] left-[-10%] w-[60%] h-[60%] bg-blue-900/10 blur-[150px] rounded-full pointer-events-none fixed print:hidden" />
       
       <div className="max-w-4xl mx-auto relative z-10 block">
          <div className="mb-16">
@@ -52,7 +61,7 @@ export default function TripPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.1 }}
-                  className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-8 backdrop-blur-md relative overflow-hidden"
+                  className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-8 backdrop-blur-md relative overflow-hidden print:overflow-visible print:[backdrop-filter:none] print:break-inside-avoid"
                >
                   <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-emerald-500 to-teal-400" />
                   
@@ -105,7 +114,7 @@ export default function TripPage() {
             ))}
          </div>
 
-         <div className="mt-16 flex justify-center pb-16">
+         <div className="mt-16 flex justify-center pb-16 print:hidden">
             <button 
               onClick={() => window.print()}
               className="px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-full font-bold shadow-xl shadow-emerald-500/20 transition-all flex items-center gap-2"
