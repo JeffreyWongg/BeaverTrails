@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Day } from '../types';
+import { Day, Stop } from '../types';
 
 export interface SurveyState {
   ageRange: string;
@@ -9,7 +9,7 @@ export interface SurveyState {
   budgetPerPerson: string;
   luggageAmount: string;
   startingCity: { name: string; coordinates?: [number, number] } | null;
-  
+
   // Results from AI Step 1
   travellerArchetype: string | null;
   recommendedProvinces: string[];
@@ -20,6 +20,12 @@ export interface SurveyState {
 
   // Final Itinerary
   itinerary: Day[];
+
+  // Phase 4b: Street View coverage cache keyed by stopId
+  streetViewCoverage: Record<string, boolean>;
+
+  // Phase 5: Immersive view state
+  immersiveConfig: { stop: Stop; time: string; season: string } | null;
 
   // Actions
   setField: <K extends keyof Omit<SurveyState, 'setField' | 'resetSurvey'>>(
@@ -42,11 +48,13 @@ const initialState = {
   activities: [],
   dreamTrip: '',
   itinerary: [],
+  streetViewCoverage: {},
+  immersiveConfig: null,
 };
 
 export const useSurveyStore = create<SurveyState>()((set) => ({
   ...initialState,
-  
+
   setField: (field, value) => set((state) => ({ ...state, [field]: value })),
   resetSurvey: () => set(initialState),
 }));

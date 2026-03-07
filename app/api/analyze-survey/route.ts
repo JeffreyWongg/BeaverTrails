@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const maxDuration = 60;
+
 const MODELS = [
   "nvidia/nemotron-3-nano-30b-a3b:free",
   "stepfun/step-3.5-flash:free",
@@ -7,11 +9,11 @@ const MODELS = [
   "arcee-ai/trinity-large-preview:free",
 ];
 
-const TIMEOUT_MS = 20000;
+const PER_MODEL_TIMEOUT = 15000;
 
 async function callOpenRouter(apiKey: string, model: string, messages: Array<{ role: string; content: string }>) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), PER_MODEL_TIMEOUT);
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -66,22 +68,31 @@ Return JSON: {"traveller_archetype": "...", "recommended_provinces": ["..."]}`;
       { role: "user", content: prompt },
     ];
 
-    let lastError = "";
-    for (const model of MODELS) {
-      try {
-        console.log(`[analyze-survey] Trying ${model}...`);
-        const content = await callOpenRouter(apiKey, model, messages);
-        const parsedData = JSON.parse(content);
-        console.log(`[analyze-survey] ✓ ${model}`);
-        return NextResponse.json(parsedData);
-      } catch (err: unknown) {
-        lastError = err instanceof Error ? err.message : String(err);
-        console.warn(`[analyze-survey] ✗ ${model}: ${lastError.slice(0, 100)}`);
-        continue;
-      }
-    }
+    // Race all models in parallel — first valid response wins
+    console.log(`[analyze-survey] Racing ${MODELS.length} models in parallel...`);
 
-    throw new Error(`All models failed. Last: ${lastError}`);
+    const raceAttempts = MODELS.map(async (model) => {
+      try {
+        const content = await callOpenRouter(apiKey, model, messages);
+        const parsed = JSON.parse(content);
+        if (!parsed.traveller_archetype || !parsed.recommended_provinces) {
+          throw new Error(`${model} returned incomplete data`);
+        }
+        console.log(`[analyze-survey] ✓ ${model} won the race`);
+        return parsed;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[analyze-survey] ✗ ${model}: ${msg.slice(0, 100)}`);
+        throw err;
+      }
+    });
+
+    try {
+      const result = await Promise.any(raceAttempts);
+      return NextResponse.json(result);
+    } catch {
+      throw new Error("All models failed or timed out. Please try again.");
+    }
 
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);

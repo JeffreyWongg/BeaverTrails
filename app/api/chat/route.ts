@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const maxDuration = 60;
+
 const MODELS = [
   "nvidia/nemotron-3-nano-30b-a3b:free",
   "stepfun/step-3.5-flash:free",
@@ -7,7 +9,7 @@ const MODELS = [
   "arcee-ai/trinity-large-preview:free",
 ];
 
-const TIMEOUT_MS = 30000;
+const PER_MODEL_TIMEOUT = 25000;
 
 const MASTER_PROMPT = `You are Beav, a chill and helpful Canadian travel buddy for BeaverTrails. The user will show you their trip itinerary (as JSON) and ask you to tweak it.
 
@@ -29,7 +31,7 @@ async function callOpenRouter(
   messages: Array<{ role: string; content: string }>
 ) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), PER_MODEL_TIMEOUT);
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -73,7 +75,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "API key not configured" }, { status: 500 });
     }
 
-    // Send compact itinerary (no pretty print) to reduce tokens
     const messages: Array<{ role: string; content: string }> = [
       { role: "system", content: MASTER_PROMPT },
       { role: "user", content: `Current itinerary:\n${JSON.stringify(itinerary)}` },
@@ -87,22 +88,29 @@ export async function POST(req: Request) {
 
     messages.push({ role: "user", content: message });
 
-    let lastError = "";
-    for (const model of MODELS) {
+    // Race all models in parallel — first valid response wins
+    console.log(`[chat] Racing ${MODELS.length} models in parallel...`);
+
+    const raceAttempts = MODELS.map(async (model) => {
       try {
-        console.log(`[chat] Trying ${model}...`);
         const content = await callOpenRouter(apiKey, model, messages);
         const parsed = JSON.parse(content);
-        console.log(`[chat] ✓ ${model}`);
-        return NextResponse.json(parsed);
-      } catch (err: unknown) {
-        lastError = err instanceof Error ? err.message : String(err);
-        console.warn(`[chat] ✗ ${model}: ${lastError.slice(0, 100)}`);
-        continue;
+        console.log(`[chat] ✓ ${model} won the race`);
+        return parsed;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[chat] ✗ ${model}: ${msg.slice(0, 100)}`);
+        throw err;
       }
+    });
+
+    try {
+      const result = await Promise.any(raceAttempts);
+      return NextResponse.json(result);
+    } catch {
+      throw new Error("All models failed or timed out.");
     }
 
-    throw new Error(`All models failed. Last: ${lastError}`);
   } catch (error: unknown) {
     const errMsg = error instanceof Error ? error.message : String(error);
     console.error("Chat error:", errMsg);
