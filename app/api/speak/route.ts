@@ -50,7 +50,7 @@ async function callOpenRouter(
 
 export async function POST(req: NextRequest) {
   try {
-    const { stopName, stopType, stopNotes, timeOfDay = "Day", season = "Summer" } =
+    const { stopName, stopType, stopNotes, timeOfDay = "Day", season = "Summer", preGeneratedText } =
       await req.json();
 
     const openrouterKey = process.env.OPENROUTER_API_KEY;
@@ -58,38 +58,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "OpenRouter API key not configured" }, { status: 500 });
     }
 
-    const elevenlabsKey = process.env.ELEVENLABS_API_KEY;
+    const elevenlabsKey = process.env.ELEVEN_API_KEY;
     const voiceId = process.env.ELEVENLABS_CHARLOTTE_VOICE_ID || "XB0fDUnXU5powFXDhCwa";
 
-    // Step 1: Generate narration text via OpenRouter
-    const systemPrompt = `You are a vivid travel narrator describing Canadian locations. Write exactly 3-4 short, immersive sentences. Be sensory — describe sights, sounds, smells. Match the time of day and season. Return ONLY the narration text, no quotes or extra formatting.`;
+    // Step 1: Generate narration text (skip if pre-generated text provided)
+    let narrationText: string = preGeneratedText || "";
+    if (!narrationText) {
+      const systemPrompt = `You are a vivid travel narrator describing Canadian locations. Write exactly 3-4 short, immersive sentences. Be sensory — describe sights, sounds, smells. Match the time of day and season. Return ONLY the narration text, no quotes or extra formatting.`;
 
-    const userPrompt = `Location: ${stopName} (${stopType})${stopNotes ? ` — ${stopNotes}` : ""}
+      const userPrompt = `Location: ${stopName} (${stopType})${stopNotes ? ` — ${stopNotes}` : ""}
 Time of day: ${timeOfDay}
 Season: ${season}
 
 Write a vivid, sensory narration for this stop.`;
 
-    let narrationText = "";
-    let lastError = "";
-    for (const model of MODELS) {
-      try {
-        narrationText = await callOpenRouter(openrouterKey, model, [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ]);
-        break;
-      } catch (err: unknown) {
-        lastError = err instanceof Error ? err.message : String(err);
-        continue;
+      let lastError = "";
+      for (const model of MODELS) {
+        try {
+          narrationText = await callOpenRouter(openrouterKey, model, [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ]);
+          break;
+        } catch (err: unknown) {
+          lastError = err instanceof Error ? err.message : String(err);
+          continue;
+        }
       }
-    }
 
-    if (!narrationText) {
-      return NextResponse.json(
-        { error: `Narration generation failed: ${lastError}` },
-        { status: 500 }
-      );
+      if (!narrationText) {
+        return NextResponse.json(
+          { error: `Narration generation failed: ${lastError}` },
+          { status: 500 }
+        );
+      }
     }
 
     // Step 2: Convert to speech via ElevenLabs
@@ -110,8 +112,10 @@ Write a vivid, sensory narration for this stop.`;
           text: narrationText,
           model_id: "eleven_multilingual_v2",
           voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
+            stability: 0.4,
+            similarity_boost: 0.8,
+            style: 0.3,
+            use_speaker_boost: true,
           },
         }),
       }
@@ -129,6 +133,7 @@ Write a vivid, sensory narration for this stop.`;
       headers: {
         "Content-Type": "audio/mpeg",
         "Cache-Control": "no-store",
+        "X-Narration-Text": encodeURIComponent(narrationText),
       },
     });
   } catch (error: unknown) {

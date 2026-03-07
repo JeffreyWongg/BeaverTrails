@@ -2,8 +2,9 @@
 
 import { useSurveyStore } from "../../lib/store";
 import { useRouter } from "next/navigation";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Stop } from "../../types";
+import { getStopKey } from "../../lib/streetView";
 import { AnimatePresence } from "framer-motion";
 
 import { TripMap } from "./components/TripMap";
@@ -14,7 +15,7 @@ import { ImmersiveView } from "./components/ImmersiveView";
 import { TripGuide } from "./components/TripGuide";
 
 export default function TripPage() {
-  const { itinerary, immersiveConfig, setField } = useSurveyStore();
+  const { itinerary, immersiveConfig, narrationScripts, setField } = useSurveyStore();
   const router = useRouter();
 
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
@@ -44,6 +45,29 @@ export default function TripPage() {
       }
     });
     return stops;
+  }, [itinerary]);
+
+  useEffect(() => {
+    if (!itinerary || itinerary.length === 0) return;
+
+    const stops = allStops.map((s) => ({
+      key: getStopKey(s),
+      name: s.name,
+      type: s.type,
+      notes: s.notes || s.description || "",
+    }));
+
+    fetch("/api/pregenerate-narrations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stops, timeOfDay: "Day", season: "Summer" }),
+    })
+      .then((r) => r.json())
+      .then(({ scripts }) => {
+        if (scripts) setField("narrationScripts", { ...narrationScripts, ...scripts });
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itinerary]);
 
   const handleEnterImmersive = (stop: Stop, time: string, season: string) => {

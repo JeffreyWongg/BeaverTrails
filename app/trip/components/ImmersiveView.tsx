@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { X, Mic, MicOff, Volume2, VolumeX, ChevronLeft, ChevronRight } from "lucide-react";
 import { useSurveyStore } from "../../../lib/store";
 import { Stop } from "../../../types";
+import { getStopKey } from "../../../lib/streetView";
 
 // Ambient sound URLs (replace with actual hosted audio files)
 // TODO: Host proper ambient audio files and update these URLs
@@ -55,6 +56,7 @@ export function ImmersiveView({
   const mapboxRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const narrationAudioRef = useRef<HTMLAudioElement | null>(null);
+  const narrationAbortRef = useRef<AbortController | null>(null);
   const mapboxMapRef = useRef<unknown>(null);
   const bearingAnimRef = useRef<number | null>(null);
 
@@ -63,14 +65,15 @@ export function ImmersiveView({
   const [isNarrating, setIsNarrating] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [muteAmbient, setMuteAmbient] = useState(false);
-  const [qaOverlay, setQaOverlay] = useState<{ q: string; a: string } | null>(null);
-  const [qaFading, setQaFading] = useState(false);
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
   const [textQuestion, setTextQuestion] = useState("");
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [currentStop, setCurrentStop] = useState<Stop>(initialStop);
+  const [narrationScript, setNarrationScript] = useState<string | null>(null);
+  const isFirstRender = useRef(true);
 
-  const { streetViewCoverage } = useSurveyStore();
+  const { streetViewCoverage, narrationScripts, immersiveChatHistory, setField } = useSurveyStore();
 
   useEffect(() => {
     setCurrentIndex(initialIndex);
@@ -81,6 +84,7 @@ export function ImmersiveView({
     currentStop.id ||
     `${currentStop.name}_${currentStop.coordinates[0].toFixed(4)}_${currentStop.coordinates[1].toFixed(4)}`;
   const svAvailable = streetViewCoverage[stopKey] === true;
+  const chatHistory = immersiveChatHistory[stopKey] || [];
 
   // Combined CSS filter
   const combinedFilter = () => {
@@ -214,17 +218,30 @@ export function ImmersiveView({
   // Fetch and play narration
   const playNarration = useCallback(
     async (time: string, sea: string) => {
+      // Cancel any in-flight narration request
+      narrationAbortRef.current?.abort();
+      const abortController = new AbortController();
+      narrationAbortRef.current = abortController;
+
       setIsNarrating(true);
       try {
+        const cacheKey = `${getStopKey(currentStop)}_${time}_${sea}`;
+        const cachedText = narrationScripts[cacheKey];
+
+        // Show cached text immediately if available
+        if (cachedText) setNarrationScript(cachedText);
+
         const res = await fetch("/api/speak", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: abortController.signal,
           body: JSON.stringify({
-            stopName: stop.name,
+            stopName: currentStop.name,
             stopType: currentStop.type,
             stopNotes: currentStop.notes || currentStop.description || "",
             timeOfDay: time,
             season: sea,
+            preGeneratedText: cachedText || undefined,
           }),
         });
 
@@ -234,6 +251,13 @@ export function ImmersiveView({
 
         const contentType = res.headers.get("Content-Type") || "";
         if (contentType.includes("audio")) {
+          const textHeader = res.headers.get("X-Narration-Text");
+          const generatedText = textHeader ? decodeURIComponent(textHeader) : cachedText || null;
+          if (generatedText) setNarrationScript(generatedText);
+          // Save newly generated script to cache
+          if (generatedText && !cachedText) {
+            setField("narrationScripts", { ...narrationScripts, [cacheKey]: generatedText });
+          }
           const blob = await res.blob();
           const url = URL.createObjectURL(blob);
           const audio = new Audio(url);
@@ -244,14 +268,21 @@ export function ImmersiveView({
           };
           await audio.play();
         } else {
-          // Fallback: text only (ElevenLabs not configured)
+          const data = await res.json().catch(() => ({}));
+          const generatedText = data.text || null;
+          if (generatedText) setNarrationScript(generatedText);
+          // Save newly generated script to cache
+          if (generatedText && !cachedText) {
+            setField("narrationScripts", { ...narrationScripts, [cacheKey]: generatedText });
+          }
           setIsNarrating(false);
         }
-      } catch {
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
         setIsNarrating(false);
       }
     },
-    [currentStop]
+    [currentStop, narrationScripts, setField]
   );
 
   // Auto-play narration on mount
@@ -259,6 +290,17 @@ export function ImmersiveView({
     playNarration(timeOfDay, season);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-narrate and clear script on stop navigation (skip initial mount)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    setNarrationScript(null);
+    playNarration(timeOfDay, season);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStop]);
 
   // Re-trigger narration when time or season changes
   const handleTimeChange = (time: string) => {
@@ -336,23 +378,35 @@ export function ImmersiveView({
       setIsListening(false);
       const transcript = event.results[0][0].transcript;
 
+      // Stop current narration immediately
+      narrationAbortRef.current?.abort();
+      if (narrationAudioRef.current) {
+        narrationAudioRef.current.pause();
+        narrationAudioRef.current = null;
+      }
+      setIsNarrating(false);
+
+      setPendingQuestion(transcript);
+
       try {
           const answer = await fetchAssistantAnswer(transcript);
 
-          // Show overlay for 5s
-          setQaOverlay({ q: transcript, a: answer });
-          setQaFading(false);
+          // Persist to store
+          const updatedHistory = [...chatHistory, { q: transcript, a: answer }];
+          setField("immersiveChatHistory", { ...immersiveChatHistory, [stopKey]: updatedHistory });
+          setPendingQuestion(null);
 
-          // Play response via ElevenLabs
+          // Speak the answer
           const speakRes = await fetch("/api/speak", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               stopName: currentStop.name,
               stopType: currentStop.type,
-              stopNotes: answer,
+              stopNotes: "",
               timeOfDay,
               season,
+              preGeneratedText: answer,
             }),
           });
 
@@ -361,15 +415,16 @@ export function ImmersiveView({
             const blob = await speakRes.blob();
             const url = URL.createObjectURL(blob);
             const audio = new Audio(url);
-            audio.onended = () => URL.revokeObjectURL(url);
+            narrationAudioRef.current = audio;
+            setIsNarrating(true);
+            audio.onended = () => {
+              setIsNarrating(false);
+              URL.revokeObjectURL(url);
+            };
             await audio.play();
           }
-
-          setTimeout(() => {
-            setQaFading(true);
-            setTimeout(() => setQaOverlay(null), 1000);
-          }, 5000);
         } catch {
+          setPendingQuestion(null);
           setIsListening(false);
         }
     };
@@ -377,29 +432,45 @@ export function ImmersiveView({
     recognition.onerror = () => setIsListening(false);
     recognition.onend = () => setIsListening(false);
     recognition.start();
-  }, [fetchAssistantAnswer]);
+  }, [fetchAssistantAnswer, chatHistory, immersiveChatHistory, stopKey, setField, currentStop, timeOfDay, season]);
 
   const handleTextAsk = useCallback(
     async (event: React.FormEvent) => {
       event.preventDefault();
       const trimmed = textQuestion.trim();
       if (!trimmed) return;
+
+      // Stop current narration immediately
+      narrationAbortRef.current?.abort();
+      if (narrationAudioRef.current) {
+        narrationAudioRef.current.pause();
+        narrationAudioRef.current = null;
+      }
+      setIsNarrating(false);
+
       setIsChatLoading(true);
+      setPendingQuestion(trimmed);
+      setTextQuestion("");
+
       try {
         const answer = await fetchAssistantAnswer(trimmed);
 
-        setQaOverlay({ q: trimmed, a: answer });
-        setQaFading(false);
+        // Persist to store
+        const updatedHistory = [...chatHistory, { q: trimmed, a: answer }];
+        setField("immersiveChatHistory", { ...immersiveChatHistory, [stopKey]: updatedHistory });
+        setPendingQuestion(null);
 
+        // Speak the answer (skip OpenRouter, ElevenLabs only)
         const speakRes = await fetch("/api/speak", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             stopName: currentStop.name,
             stopType: currentStop.type,
-            stopNotes: answer,
+            stopNotes: "",
             timeOfDay,
             season,
+            preGeneratedText: answer,
           }),
         });
 
@@ -408,25 +479,27 @@ export function ImmersiveView({
           const blob = await speakRes.blob();
           const url = URL.createObjectURL(blob);
           const audio = new Audio(url);
-          audio.onended = () => URL.revokeObjectURL(url);
+          narrationAudioRef.current = audio;
+          setIsNarrating(true);
+          audio.onended = () => {
+            setIsNarrating(false);
+            URL.revokeObjectURL(url);
+          };
           await audio.play();
         }
-
-        setTimeout(() => {
-          setQaFading(true);
-          setTimeout(() => setQaOverlay(null), 1000);
-        }, 5000);
-
-        setTextQuestion("");
+      } catch {
+        setPendingQuestion(null);
       } finally {
         setIsChatLoading(false);
       }
     },
-    [textQuestion, fetchAssistantAnswer, currentStop.name, currentStop.type, timeOfDay, season]
+    [textQuestion, fetchAssistantAnswer, currentStop, timeOfDay, season, chatHistory, immersiveChatHistory, stopKey, setField]
   );
 
   // Stop all audio immediately
   const killAllAudio = useCallback(() => {
+    narrationAbortRef.current?.abort();
+    narrationAbortRef.current = null;
     if (narrationAudioRef.current) {
       narrationAudioRef.current.pause();
       narrationAudioRef.current.src = "";
@@ -520,10 +593,34 @@ export function ImmersiveView({
           </div>
 
           <div className="flex-1 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 p-3 overflow-hidden">
-            <div className="h-full overflow-y-auto pr-1 space-y-2">
-              <p className="text-[12px] text-zinc-200 leading-relaxed">
-                {currentStop.description || currentStop.notes || "A memorable stop on your BeaverTrails adventure."}
-              </p>
+            <div className="h-full overflow-y-auto pr-1 space-y-3">
+              {isNarrating && !narrationScript && chatHistory.length === 0 ? (
+                <p className="text-[12px] text-zinc-400 leading-relaxed animate-pulse">
+                  Generating narration…
+                </p>
+              ) : (
+                <p className="text-[12px] text-zinc-200 leading-relaxed">
+                  {narrationScript || currentStop.description || currentStop.notes || "A memorable stop on your BeaverTrails adventure."}
+                </p>
+              )}
+
+              {(chatHistory.length > 0 || pendingQuestion) && (
+                <div className="border-t border-zinc-700/50 pt-2 space-y-3">
+                  {chatHistory.map((item, i) => (
+                    <div key={i} className="space-y-1">
+                      <p className="text-[11px] text-emerald-400/80 italic">&ldquo;{item.q}&rdquo;</p>
+                      <p className="text-[12px] text-zinc-200 leading-relaxed">{item.a}</p>
+                    </div>
+                  ))}
+                  {pendingQuestion && (
+                    <div className="space-y-1">
+                      <p className="text-[11px] text-emerald-400/80 italic">&ldquo;{pendingQuestion}&rdquo;</p>
+                      <p className="text-[12px] text-zinc-400 animate-pulse">Thinking…</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <p className="text-[11px] text-zinc-500">
                 Ask Beav about history, hidden gems, or what to look for in this view.
               </p>
@@ -636,22 +733,6 @@ export function ImmersiveView({
         </button>
       </div>
 
-      {/* Q&A overlay */}
-      <AnimatePresence>
-        {qaOverlay && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: qaFading ? 0 : 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="absolute bottom-32 left-1/2 -translate-x-1/2 z-10 max-w-lg w-full px-4"
-          >
-            <div className="bg-zinc-950/90 backdrop-blur-md rounded-2xl p-4 border border-zinc-700 space-y-2">
-              <p className="text-zinc-400 text-xs italic">&ldquo;{qaOverlay.q}&rdquo;</p>
-              <p className="text-white text-sm leading-relaxed">{qaOverlay.a}</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 }
