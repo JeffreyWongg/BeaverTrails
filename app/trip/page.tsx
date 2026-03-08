@@ -103,8 +103,8 @@ export default function TripPage() {
       : -1;
 
   return (
-    <div className="w-full h-screen overflow-hidden flex bg-[#FAF7F2] text-gray-900">
-      <div className="w-[70%] h-full relative">
+    <div className="w-full h-screen overflow-hidden grid grid-cols-[1fr_24%] bg-white text-gray-900">
+      <div className="h-full relative overflow-hidden">
         <TripMap
           onStopClick={setSelectedStop}
           selectedStop={selectedStop}
@@ -118,7 +118,7 @@ export default function TripPage() {
         />
       </div>
 
-      <div className="w-[30%] h-full">
+      <div className="h-full overflow-hidden">
         <TripSidebar onStopClick={setSelectedStop} />
       </div>
 

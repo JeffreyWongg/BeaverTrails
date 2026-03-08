@@ -30,7 +30,7 @@ export function ImmersiveDrawer({ stop, onClose, onEnterImmersive }: ImmersiveDr
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: "-100%", opacity: 0 }}
           transition={{ type: "spring", damping: 28, stiffness: 220 }}
-          className="absolute top-0 left-0 h-full w-[380px] max-w-[80vw] bg-[#FAF7F2]/97 backdrop-blur-xl border-r border-gray-200 z-30 shadow-xl overflow-y-auto"
+          className="absolute top-0 left-0 h-full w-[320px] max-w-[80vw] bg-[#FAF7F2]/97 backdrop-blur-xl border-r border-gray-200 z-30 shadow-xl overflow-y-auto"
         >
           {/* Satellite image header */}
           <div className="relative h-52 w-full bg-gray-100 overflow-hidden flex-shrink-0">

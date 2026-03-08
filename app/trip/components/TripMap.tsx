@@ -87,8 +87,17 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
 
     mapRef.current = map;
 
+    // Keep the Mapbox canvas in sync with the container size so there are
+    // never any background-colored gaps at the edges.
+    const ro = new ResizeObserver(() => {
+      map.resize();
+    });
+    ro.observe(mapContainer.current);
+
     map.on("load", () => {
       setMapLoaded(true);
+      // Extra resize after first paint to catch any layout settling
+      requestAnimationFrame(() => map.resize());
 
       setTimeout(() => {
         const firstCityCoords = itinerary[0].city_coordinates;
@@ -107,6 +116,7 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
     });
 
     return () => {
+      ro.disconnect();
       map.remove();
       mapRef.current = null;
     };
