@@ -1,159 +1,434 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import {
+  useEffect,
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import * as THREE from "three";
+
+/* ────────────────────────────────────────────────────────────
+ * Public API exposed via ref (useImperativeHandle)
+ * ──────────────────────────────────────────────────────────── */
+export interface PanoViewerHandle {
+  /** Request an immersive-vr WebXR session. Returns true if successful. */
+  enterVR: () => Promise<boolean>;
+  /** End the current XR session */
+  exitVR: () => Promise<void>;
+  /** Enable / disable device-orientation (gyroscope) look-around on mobile */
+  setGyroEnabled: (enabled: boolean) => void;
+}
+
+export interface XRCapabilities {
+  vrSupported: boolean;
+  gyroAvailable: boolean;
+}
 
 interface PanoViewerProps {
   imageUrl: string;
+  /** Fired once on mount with capability info */
+  onXRStatus?: (caps: XRCapabilities) => void;
+  /** Fired when an XR session starts or ends */
+  onVRChange?: (active: boolean) => void;
 }
 
-/**
- * Full-screen 360° equirectangular panorama viewer using Three.js.
- * Renders the image on an inverted sphere — drag to look around, scroll to zoom.
- * Feels like Google Street View.
- */
-export function PanoViewer({ imageUrl }: PanoViewerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const frameRef = useRef<number>(0);
+/* ────────────────────────────────────────────────────────────
+ * PanoViewer — Full-screen 360° panorama with WebXR support
+ *
+ * Renders an equirectangular image on the inside of a sphere.
+ *
+ *  Desktop  — drag to look around, scroll to zoom, arrow keys
+ *  Mobile   — drag / pinch-to-zoom, optional gyroscope look
+ *  VR       — head tracking via WebXR immersive-vr session
+ * ──────────────────────────────────────────────────────────── */
+export const PanoViewer = forwardRef<PanoViewerHandle, PanoViewerProps>(
+  function PanoViewerInner({ imageUrl, onXRStatus, onVRChange }, ref) {
+    const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container || !imageUrl) return;
-
-    // ── Scene setup ──
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(
-      75, // FOV
-      container.clientWidth / container.clientHeight,
-      1,
-      1100
-    );
-    camera.target = new THREE.Vector3(0, 0, 0);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    container.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
-
-    // ── Sphere with equirectangular texture ──
-    const geometry = new THREE.SphereGeometry(500, 60, 40);
-    geometry.scale(-1, 1, 1); // Invert so we see the inside
-
-    const textureLoader = new THREE.TextureLoader();
-    textureLoader.crossOrigin = "anonymous";
-
-    const texture = textureLoader.load(imageUrl, () => {
-      // Texture loaded — trigger first render
-      renderer.render(scene, camera);
+    /* Mutable state shared between the render loop and imperative API.
+       Stored in a single ref so closures always see latest values. */
+    const state = useRef({
+      renderer: null as THREE.WebGLRenderer | null,
+      scene: null as THREE.Scene | null,
+      camera: null as THREE.PerspectiveCamera | null,
+      xrSession: null as XRSession | null,
+      gyroEnabled: false,
+      gyro: { alpha: 0, beta: 0, gamma: 0 },
     });
-    texture.colorSpace = THREE.SRGBColorSpace;
 
-    const material = new THREE.MeshBasicMaterial({ map: texture });
-    const mesh = new THREE.Mesh(geometry, material);
-    scene.add(mesh);
+    /* ── Detect browser capabilities once ── */
+    useEffect(() => {
+      const detect = async () => {
+        let vrSupported = false;
+        // Gyroscope detection: most laptops don't have gyros, so we check for mobile devices
+        // (phones/tablets almost always have gyros; laptops rarely do)
+        const isMobileDevice =
+          typeof window !== "undefined" &&
+          /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+            navigator.userAgent
+          );
+        const gyroAvailable =
+          typeof window !== "undefined" &&
+          typeof DeviceOrientationEvent !== "undefined" &&
+          isMobileDevice;
 
-    // ── Camera rotation state ──
-    let lon = 0;
-    let lat = 0;
-    let phi = 0;
-    let theta = 0;
-    let fov = 75;
+        // Check for WebXR support
+        try {
+          if (typeof navigator !== "undefined" && navigator.xr) {
+            vrSupported = await navigator.xr.isSessionSupported(
+              "immersive-vr"
+            );
+            console.log("[PanoViewer] WebXR immersive-vr supported:", vrSupported);
+          } else {
+            console.warn("[PanoViewer] navigator.xr not available");
+          }
+        } catch (err) {
+          console.warn("[PanoViewer] WebXR detection error:", err);
+        }
 
-    let isDragging = false;
-    let pointerX = 0;
-    let pointerY = 0;
-    let dragStartLon = 0;
-    let dragStartLat = 0;
+        onXRStatus?.({ vrSupported, gyroAvailable });
+      };
 
-    // ── Mouse / Touch handlers ──
-    const onPointerDown = (e: PointerEvent) => {
-      isDragging = true;
-      pointerX = e.clientX;
-      pointerY = e.clientY;
-      dragStartLon = lon;
-      dragStartLat = lat;
-      container.style.cursor = "grabbing";
-    };
+      // Delay detection slightly to ensure page is fully loaded
+      const timeout = setTimeout(detect, 100);
+      return () => clearTimeout(timeout);
+      // Only run once — onXRStatus is expected to be stable (useCallback)
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    const onPointerMove = (e: PointerEvent) => {
-      if (!isDragging) return;
-      lon = dragStartLon + (pointerX - e.clientX) * 0.2;
-      lat = dragStartLat + (e.clientY - pointerY) * 0.2;
-      lat = Math.max(-85, Math.min(85, lat)); // Clamp vertical
-    };
+    /* ── Imperative handle (enterVR / exitVR / gyro) ── */
+    useImperativeHandle(
+      ref,
+      () => ({
+        enterVR: async () => {
+          const r = state.current.renderer;
+          if (!r) {
+            console.error("[PanoViewer] Renderer not initialized");
+            return false;
+          }
 
-    const onPointerUp = () => {
-      isDragging = false;
-      container.style.cursor = "grab";
-    };
+          if (typeof navigator === "undefined" || !navigator.xr) {
+            console.error("[PanoViewer] WebXR not available. Make sure you're using Quest Browser.");
+            return false;
+          }
 
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      fov = Math.max(30, Math.min(100, fov + e.deltaY * 0.05));
-      camera.fov = fov;
-      camera.updateProjectionMatrix();
-    };
+          try {
+            // Check if immersive-vr is supported (may have changed since page load)
+            const isSupported = await navigator.xr.isSessionSupported("immersive-vr");
+            if (!isSupported) {
+              console.error("[PanoViewer] immersive-vr not supported on this device");
+              return false;
+            }
 
-    container.addEventListener("pointerdown", onPointerDown);
-    container.addEventListener("pointermove", onPointerMove);
-    container.addEventListener("pointerup", onPointerUp);
-    container.addEventListener("pointerleave", onPointerUp);
-    container.addEventListener("wheel", onWheel, { passive: false });
+            // Request VR session with Quest-friendly features
+            // "local-floor" = seated/standing tracking (Quest supports this)
+            // "bounded-floor" = room-scale tracking (if available)
+            const session = await navigator.xr.requestSession("immersive-vr", {
+              optionalFeatures: ["local-floor", "bounded-floor", "hand-tracking"],
+            });
 
-    // ── Resize handler ──
-    const onResize = () => {
-      camera.aspect = container.clientWidth / container.clientHeight;
-      camera.updateProjectionMatrix();
+            await r.xr.setSession(session);
+            state.current.xrSession = session;
+            onVRChange?.(true);
+
+            session.addEventListener("end", () => {
+              state.current.xrSession = null;
+              onVRChange?.(false);
+            });
+
+            console.log("[PanoViewer] VR session started successfully");
+            return true;
+          } catch (err: unknown) {
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            console.error("[PanoViewer] Could not start VR session:", errorMsg);
+            
+            // Provide helpful error messages
+            if (errorMsg.includes("not allowed") || errorMsg.includes("permission")) {
+              console.error("[PanoViewer] WebXR permission denied. Make sure you're using Quest Browser and WebXR is enabled in settings.");
+            } else if (errorMsg.includes("not supported")) {
+              console.error("[PanoViewer] WebXR not supported. Make sure you're using Quest Browser (not Oculus Browser).");
+            }
+            
+            return false;
+          }
+        },
+
+        exitVR: async () => {
+          const s = state.current.xrSession;
+          if (s) {
+            await s.end();
+            state.current.xrSession = null;
+          }
+        },
+
+        setGyroEnabled: (enabled: boolean) => {
+          state.current.gyroEnabled = enabled;
+
+          // iOS 13+ requires explicit permission for DeviceOrientationEvent
+          if (enabled && typeof DeviceOrientationEvent !== "undefined") {
+            const doe = DeviceOrientationEvent as unknown as {
+              requestPermission?: () => Promise<string>;
+            };
+            if (typeof doe.requestPermission === "function") {
+              doe
+                .requestPermission()
+                .then((response) => {
+                  if (response !== "granted") {
+                    state.current.gyroEnabled = false;
+                  }
+                })
+                .catch(() => {
+                  state.current.gyroEnabled = false;
+                });
+            }
+          }
+        },
+      }),
+      [onVRChange]
+    );
+
+    /* ── Main Three.js + WebXR setup ── */
+    useEffect(() => {
+      const container = containerRef.current;
+      if (!container || !imageUrl) return;
+
+      const st = state.current;
+
+      // ── Scene ──
+      const scene = new THREE.Scene();
+      st.scene = scene;
+
+      // ── Camera ──
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        container.clientWidth / container.clientHeight,
+        0.1,
+        1100
+      );
+      // Slightly off-centre so lookAt() works before first interaction
+      camera.position.set(0, 0, 0.01);
+      st.camera = camera;
+
+      // ── Renderer (WebXR-enabled) ──
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
       renderer.setSize(container.clientWidth, container.clientHeight);
-    };
-    window.addEventListener("resize", onResize);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    // ── Animation loop ──
-    const animate = () => {
-      frameRef.current = requestAnimationFrame(animate);
+      // ---- WebXR ----
+      renderer.xr.enabled = true;
+      renderer.xr.setReferenceSpaceType("local"); // seated / stationary
 
-      phi = THREE.MathUtils.degToRad(90 - lat);
-      theta = THREE.MathUtils.degToRad(lon);
+      container.appendChild(renderer.domElement);
+      st.renderer = renderer;
 
-      camera.target.x = 500 * Math.sin(phi) * Math.cos(theta);
-      camera.target.y = 500 * Math.cos(phi);
-      camera.target.z = 500 * Math.sin(phi) * Math.sin(theta);
+      // ── Panorama sphere (inverted — we view from inside) ──
+      const geometry = new THREE.SphereGeometry(500, 60, 40);
+      geometry.scale(-1, 1, 1);
 
-      camera.lookAt(camera.target);
-      renderer.render(scene, camera);
-    };
+      const loader = new THREE.TextureLoader();
+      loader.crossOrigin = "anonymous";
+      const texture = loader.load(imageUrl, () => {
+        renderer.render(scene, camera);
+      });
+      texture.colorSpace = THREE.SRGBColorSpace;
 
-    frameRef.current = requestAnimationFrame(animate);
+      const material = new THREE.MeshBasicMaterial({ map: texture });
+      const mesh = new THREE.Mesh(geometry, material);
+      scene.add(mesh);
 
-    // ── Cleanup ──
-    return () => {
-      cancelAnimationFrame(frameRef.current);
-      container.removeEventListener("pointerdown", onPointerDown);
-      container.removeEventListener("pointermove", onPointerMove);
-      container.removeEventListener("pointerup", onPointerUp);
-      container.removeEventListener("pointerleave", onPointerUp);
-      container.removeEventListener("wheel", onWheel);
-      window.removeEventListener("resize", onResize);
+      // ── Manual camera state (non-VR) ──
+      let lon = 0;
+      let lat = 0;
+      let fov = 75;
+      let isDragging = false;
+      let px = 0;
+      let py = 0;
+      let sLon = 0;
+      let sLat = 0;
 
-      geometry.dispose();
-      material.dispose();
-      texture.dispose();
-      renderer.dispose();
+      // — Pointer (mouse / single-finger touch) —
+      const onPointerDown = (e: PointerEvent) => {
+        if (renderer.xr.isPresenting) return;
+        isDragging = true;
+        px = e.clientX;
+        py = e.clientY;
+        sLon = lon;
+        sLat = lat;
+        container.style.cursor = "grabbing";
+      };
 
-      if (container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement);
-      }
-      rendererRef.current = null;
-    };
-  }, [imageUrl]);
+      const onPointerMove = (e: PointerEvent) => {
+        if (!isDragging || renderer.xr.isPresenting) return;
+        lon = sLon + (px - e.clientX) * 0.2;
+        lat = Math.max(-85, Math.min(85, sLat + (e.clientY - py) * 0.2));
+      };
 
-  return (
-    <div
-      ref={containerRef}
-      className="w-full h-full"
-      style={{ cursor: "grab" }}
-    />
-  );
-}
+      const onPointerUp = () => {
+        isDragging = false;
+        container.style.cursor = "grab";
+      };
+
+      // — Mouse wheel zoom —
+      const onWheel = (e: WheelEvent) => {
+        if (renderer.xr.isPresenting) return;
+        e.preventDefault();
+        fov = Math.max(30, Math.min(100, fov + e.deltaY * 0.05));
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+      };
+
+      // — Touch: pinch-to-zoom —
+      let pinchDist = 0;
+      const onTouchStart = (e: TouchEvent) => {
+        if (e.touches.length === 2) {
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          pinchDist = Math.sqrt(dx * dx + dy * dy);
+        }
+      };
+      const onTouchMove = (e: TouchEvent) => {
+        if (e.touches.length === 2 && !renderer.xr.isPresenting) {
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          fov = Math.max(30, Math.min(100, fov + (pinchDist - d) * 0.1));
+          camera.fov = fov;
+          camera.updateProjectionMatrix();
+          pinchDist = d;
+        }
+      };
+
+      // — Keyboard (arrow keys + +/-) —
+      const onKeyDown = (e: KeyboardEvent) => {
+        if (renderer.xr.isPresenting) return;
+        const step = 3;
+        switch (e.key) {
+          case "ArrowLeft":
+            lon -= step;
+            break;
+          case "ArrowRight":
+            lon += step;
+            break;
+          case "ArrowUp":
+            lat = Math.min(85, lat + step);
+            break;
+          case "ArrowDown":
+            lat = Math.max(-85, lat - step);
+            break;
+          case "+":
+          case "=":
+            fov = Math.max(30, fov - 3);
+            camera.fov = fov;
+            camera.updateProjectionMatrix();
+            break;
+          case "-":
+            fov = Math.min(100, fov + 3);
+            camera.fov = fov;
+            camera.updateProjectionMatrix();
+            break;
+        }
+      };
+
+      // — Device orientation (gyroscope) —
+      const onDeviceOrientation = (e: DeviceOrientationEvent) => {
+        if (!st.gyroEnabled || renderer.xr.isPresenting) return;
+        st.gyro = {
+          alpha: e.alpha || 0,
+          beta: e.beta || 0,
+          gamma: e.gamma || 0,
+        };
+      };
+
+      // ── Bind events ──
+      container.addEventListener("pointerdown", onPointerDown);
+      container.addEventListener("pointermove", onPointerMove);
+      container.addEventListener("pointerup", onPointerUp);
+      container.addEventListener("pointerleave", onPointerUp);
+      container.addEventListener("wheel", onWheel, { passive: false });
+      container.addEventListener("touchstart", onTouchStart, { passive: true });
+      container.addEventListener("touchmove", onTouchMove, { passive: true });
+      window.addEventListener("keydown", onKeyDown);
+      window.addEventListener("deviceorientation", onDeviceOrientation);
+
+      // ── Resize ──
+      const onResize = () => {
+        if (renderer.xr.isPresenting) return;
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+      };
+      window.addEventListener("resize", onResize);
+
+      // ── Render loop (setAnimationLoop is REQUIRED for WebXR) ──
+      const target = new THREE.Vector3();
+
+      renderer.setAnimationLoop(() => {
+        if (!renderer.xr.isPresenting) {
+          // Manual camera look (pointer-drag OR gyroscope)
+          if (st.gyroEnabled) {
+            lon = st.gyro.alpha;
+            lat = Math.max(-85, Math.min(85, st.gyro.beta - 90));
+          }
+
+          const phi = THREE.MathUtils.degToRad(90 - lat);
+          const theta = THREE.MathUtils.degToRad(lon);
+          target.set(
+            500 * Math.sin(phi) * Math.cos(theta),
+            500 * Math.cos(phi),
+            500 * Math.sin(phi) * Math.sin(theta)
+          );
+          camera.lookAt(target);
+        }
+        // In VR: Three.js XR manager handles camera orientation
+        // (stereoscopic rendering + head tracking are automatic)
+
+        renderer.render(scene, camera);
+      });
+
+      // ── Cleanup ──
+      return () => {
+        renderer.setAnimationLoop(null);
+
+        container.removeEventListener("pointerdown", onPointerDown);
+        container.removeEventListener("pointermove", onPointerMove);
+        container.removeEventListener("pointerup", onPointerUp);
+        container.removeEventListener("pointerleave", onPointerUp);
+        container.removeEventListener("wheel", onWheel);
+        container.removeEventListener("touchstart", onTouchStart);
+        container.removeEventListener("touchmove", onTouchMove);
+        window.removeEventListener("keydown", onKeyDown);
+        window.removeEventListener("deviceorientation", onDeviceOrientation);
+        window.removeEventListener("resize", onResize);
+
+        // End any active XR session
+        if (st.xrSession) {
+          st.xrSession.end().catch(() => {});
+          st.xrSession = null;
+        }
+
+        geometry.dispose();
+        material.dispose();
+        texture.dispose();
+        renderer.dispose();
+
+        if (container.contains(renderer.domElement)) {
+          container.removeChild(renderer.domElement);
+        }
+
+        st.renderer = null;
+        st.scene = null;
+        st.camera = null;
+      };
+    }, [imageUrl]);
+
+    return (
+      <div
+        ref={containerRef}
+        className="w-full h-full"
+        style={{ cursor: "grab" }}
+      />
+    );
+  }
+);

@@ -82,9 +82,24 @@ export default function PreferencesPage() {
              setField("itinerary", itinerary);
              router.push("/trip");
          } else {
-             const errorData = await response.text();
+             const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
              console.error("Failed to generate itinerary:", response.status, errorData);
-             setGenError("AI models are busy. Please try again.");
+             
+             // Show more specific error messages
+             let errorMessage = "AI models are busy. Please try again.";
+             if (errorData.detail) {
+               if (errorData.detail.includes("timed out")) {
+                 errorMessage = "Request timed out. The AI is taking too long. Please try again.";
+               } else if (errorData.detail.includes("API key")) {
+                 errorMessage = "API configuration error. Please contact support.";
+               } else if (errorData.detail.includes("rate limit") || errorData.detail.includes("429")) {
+                 errorMessage = "Too many requests. Please wait a moment and try again.";
+               } else {
+                 errorMessage = `Error: ${errorData.detail.slice(0, 100)}`;
+               }
+             }
+             
+             setGenError(errorMessage);
              setIsGenerating(false);
          }
      } catch (err) {

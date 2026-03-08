@@ -6,6 +6,8 @@ export const maxDuration = 120;
 const MODELS = [
   "google/gemini-3.1-pro-preview",
   "google/gemini-2.5-pro",
+  "google/gemini-2.0-flash-exp:free", // Free fallback
+  "meta-llama/llama-3.2-3b-instruct:free", // Free fallback
 ];
 
 const PER_MODEL_TIMEOUT = 30000; // 30s per model — but they race in parallel

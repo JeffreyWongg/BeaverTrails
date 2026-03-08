@@ -5,10 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Mic, MicOff, Volume2, VolumeX,
   ChevronLeft, ChevronRight, Sparkles, ArrowLeft, Loader2, Send,
+  Glasses, Compass,
 } from "lucide-react";
 import { useSurveyStore } from "../../../lib/store";
 import { Stop } from "../../../types";
 import { PanoViewer } from "./PanoViewer";
+import type { PanoViewerHandle, XRCapabilities } from "./PanoViewer";
 import { AmbientEngine } from "./AmbientEngine";
 
 type ImagineState = "idle" | "input" | "generating" | "ready" | "error";
@@ -37,6 +39,7 @@ export function ImmersiveView({
   const mapboxMapRef = useRef<unknown>(null);
   const bearingAnimRef = useRef<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const panoRef = useRef<PanoViewerHandle>(null);
 
   const timeOfDay = initialTime || "Day";
   const season = initialSeason || "Summer";
@@ -49,6 +52,18 @@ export function ImmersiveView({
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [currentStop, setCurrentStop] = useState<Stop>(initialStop);
+
+  // --- WebXR / Gyroscope State ---
+  const [vrSupported, setVrSupported] = useState(false);
+  const [gyroAvailable, setGyroAvailable] = useState(false);
+  const [inVR, setInVR] = useState(false);
+  const [gyroActive, setGyroActive] = useState(false);
+  const [vrError, setVrError] = useState<string | null>(null);
+
+  const handleXRStatus = useCallback((caps: XRCapabilities) => {
+    setVrSupported(caps.vrSupported);
+    setGyroAvailable(caps.gyroAvailable);
+  }, []);
 
   // --- Imagination Mode State ---
   const [imagineState, setImagineState] = useState<ImagineState>("idle");
@@ -88,7 +103,7 @@ export function ImmersiveView({
     const hint = `${currentStop.name} ${currentStop.type} ${currentStop.description || ""} ${currentStop.notes || ""}`;
     engine.play(hint, 0.36);
     return () => {
-      engine.stop();
+      engine.kill(); // Instant stop on unmount — no lingering fade
       ambientRef.current = null;
     };
   }, [currentStop]);
@@ -98,40 +113,75 @@ export function ImmersiveView({
   }, [muteAmbient]);
 
   // ── Street View ──
+  const [svFailed, setSvFailed] = useState(false);
+
   useEffect(() => {
     if (!svAvailable || !streetViewRef.current) return;
+    setSvFailed(false);
 
     const initPanorama = () => {
       if (!streetViewRef.current) return;
       try {
-        new google.maps.StreetViewPanorama(streetViewRef.current, {
+        const panorama = new google.maps.StreetViewPanorama(streetViewRef.current, {
           position: { lat: currentStop.coordinates[1], lng: currentStop.coordinates[0] },
           pov: { heading: 0, pitch: 0 },
           zoom: 1,
           disableDefaultUI: true,
-          clickToGo: false,
+          clickToGo: true,
           motionTracking: false,
         });
-      } catch {
-        /* StreetView not available */
+
+        // Listen for status — if no panorama found, mark as failed
+        google.maps.event.addListenerOnce(panorama, "status_changed", () => {
+          if (panorama.getStatus() !== google.maps.StreetViewStatus.OK) {
+            console.warn("[ImmersiveView] Street View status not OK, falling back to Mapbox");
+            setSvFailed(true);
+          }
+        });
+
+        // Also listen for the visible_changed event as a safety check
+        google.maps.event.addListenerOnce(panorama, "pano_changed", () => {
+          console.log("[ImmersiveView] Street View panorama loaded successfully");
+        });
+      } catch (err) {
+        console.error("[ImmersiveView] Street View init error:", err);
+        setSvFailed(true);
+      }
+    };
+
+    const loadAndInit = async () => {
+      try {
+        const { setOptions, importLibrary } = await import("@googlemaps/js-api-loader");
+        setOptions({ key: process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || "" });
+        // Import both maps AND streetView libraries
+        await Promise.all([
+          importLibrary("maps"),
+          importLibrary("streetView"),
+        ]);
+        // Small delay to ensure container is fully laid out
+        requestAnimationFrame(() => {
+          initPanorama();
+        });
+      } catch (err) {
+        console.error("[ImmersiveView] Failed to load Google Maps:", err);
+        setSvFailed(true);
       }
     };
 
     if (window.google?.maps?.StreetViewPanorama) {
-      initPanorama();
+      requestAnimationFrame(() => initPanorama());
     } else {
-      import("@googlemaps/js-api-loader").then(({ setOptions, importLibrary }) => {
-        setOptions({ key: process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || "" });
-        importLibrary("maps").then(initPanorama).catch(() => {});
-      });
+      loadAndInit();
     }
 
     return () => {};
   }, [svAvailable, currentStop]);
 
-  // ── Mapbox Fallback ──
+  // ── Mapbox Fallback (also used when Street View fails) ──
+  const showMapbox = !svAvailable || svFailed;
+
   useEffect(() => {
-    if (svAvailable || !mapboxRef.current) return;
+    if (!showMapbox || !mapboxRef.current) return;
 
     let map: unknown = null;
     let animId: number | null = null;
@@ -169,7 +219,7 @@ export function ImmersiveView({
         (map as { remove: () => void }).remove();
       }
     };
-  }, [svAvailable, currentStop]);
+  }, [showMapbox, currentStop]);
 
   // ── Narration ──
   const playNarration = useCallback(
@@ -296,8 +346,14 @@ export function ImmersiveView({
         if (ct.includes("audio")) {
           const blob = await speakRes.blob();
           const url = URL.createObjectURL(blob);
+          if (narrationAudioRef.current) narrationAudioRef.current.pause();
           const audio = new Audio(url);
-          audio.onended = () => URL.revokeObjectURL(url);
+          narrationAudioRef.current = audio;
+          audio.onended = () => {
+            setIsNarrating(false);
+            URL.revokeObjectURL(url);
+          };
+          setIsNarrating(true);
           await audio.play();
         }
         setTimeout(() => {
@@ -340,8 +396,14 @@ export function ImmersiveView({
         if (ct.includes("audio")) {
           const blob = await speakRes.blob();
           const url = URL.createObjectURL(blob);
+          if (narrationAudioRef.current) narrationAudioRef.current.pause();
           const audio = new Audio(url);
-          audio.onended = () => URL.revokeObjectURL(url);
+          narrationAudioRef.current = audio;
+          audio.onended = () => {
+            setIsNarrating(false);
+            URL.revokeObjectURL(url);
+          };
+          setIsNarrating(true);
           await audio.play();
         }
         setTimeout(() => {
@@ -356,14 +418,15 @@ export function ImmersiveView({
     [textQuestion, fetchAssistantAnswer, currentStop.name, currentStop.type, timeOfDay, season]
   );
 
-  // ── Kill Audio ──
+  // ── Kill Audio (immediate — used on close/unmount) ──
   const killAllAudio = useCallback(() => {
     if (narrationAudioRef.current) {
       narrationAudioRef.current.pause();
       narrationAudioRef.current.src = "";
       narrationAudioRef.current = null;
     }
-    ambientRef.current?.stop();
+    ambientRef.current?.kill(); // Immediate stop, no fade
+    ambientRef.current = null;
     setIsNarrating(false);
     setIsListening(false);
   }, []);
@@ -533,7 +596,14 @@ export function ImmersiveView({
     [imaginePrompt, currentStop, narrateImaginedScene]
   );
 
-  const handleBackToStreetView = () => {
+  const handleBackToStreetView = async () => {
+    // End any active VR session first
+    if (inVR) {
+      await panoRef.current?.exitVR();
+      setInVR(false);
+    }
+    setGyroActive(false);
+
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     if (genTimerRef.current) { clearInterval(genTimerRef.current); genTimerRef.current = null; }
     // Stop imagined-scene ambient
@@ -580,13 +650,20 @@ export function ImmersiveView({
       className="fixed inset-0 z-[100] bg-black"
       style={{ width: "100vw", height: "100vh" }}
     >
-      {/* ── Background Layer — always render Street View / Mapbox underneath ── */}
+      {/* ── Background Layer — Street View + Mapbox fallback ── */}
       <div className="absolute inset-0">
-        {svAvailable ? (
-          <div ref={streetViewRef} className="w-full h-full" />
-        ) : (
-          <div ref={mapboxRef} className="w-full h-full" />
-        )}
+        {/* Street View layer — hidden when not available or failed */}
+        <div
+          ref={streetViewRef}
+          className="w-full h-full absolute inset-0"
+          style={{ display: svAvailable && !svFailed ? "block" : "none" }}
+        />
+        {/* Mapbox fallback — shown when no SV or SV failed */}
+        <div
+          ref={mapboxRef}
+          className="w-full h-full absolute inset-0"
+          style={{ display: showMapbox ? "block" : "none" }}
+        />
       </div>
 
       {/* ── AI Panorama Overlay — renders ON TOP of Street View when ready ── */}
@@ -600,7 +677,12 @@ export function ImmersiveView({
           >
             {panoUrl ? (
               /* 360° panorama sphere — drag to look around like Street View */
-              <PanoViewer imageUrl={panoUrl} />
+              <PanoViewer
+                ref={panoRef}
+                imageUrl={panoUrl}
+                onXRStatus={handleXRStatus}
+                onVRChange={setInVR}
+              />
             ) : thumbnailUrl ? (
               /* Thumbnail fallback */
               <div className="w-full h-full relative">
@@ -819,8 +901,70 @@ export function ImmersiveView({
         </div>
       </div>
 
-      {/* ── Top-right: Exit + Mute ── */}
+      {/* ── Top-right: XR controls + Mute + Exit ── */}
       <div className="absolute top-6 right-6 z-10 flex items-center gap-2">
+        {/* VR button — visible in imagination mode (always show, let WebXR handle errors) */}
+        {isInImagination && (
+          <button
+            onClick={async () => {
+              setVrError(null); // Clear previous errors
+              
+              if (inVR) {
+                await panoRef.current?.exitVR();
+              } else {
+                // Debug: Check WebXR availability
+                const hasXR = typeof navigator !== "undefined" && !!navigator.xr;
+                const isSecure = window.location.protocol === "https:" || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+                
+                if (!hasXR) {
+                  setVrError("WebXR not detected. Quest Browser may require HTTPS. Try using ngrok or deploy to Vercel.");
+                  return;
+                }
+                
+                if (!isSecure && !window.location.hostname.includes("localhost") && !window.location.hostname.includes("127.0.0.1")) {
+                  setVrError("WebXR requires HTTPS. Use ngrok (npx ngrok http 3000) or deploy to Vercel.");
+                  return;
+                }
+                
+                const success = await panoRef.current?.enterVR();
+                if (!success) {
+                  setVrError("Failed to enter VR. Check browser console for details. Make sure you're using Quest Browser.");
+                }
+              }
+            }}
+            className={`h-10 px-3 rounded-full backdrop-blur-md flex items-center justify-center gap-1.5 text-xs font-medium transition-all ${
+              inVR
+                ? "bg-purple-600/90 text-white border border-purple-400/50 shadow-lg shadow-purple-600/30"
+                : vrSupported
+                ? "bg-zinc-950/80 text-zinc-300 hover:text-white hover:bg-zinc-800/80"
+                : "bg-zinc-950/60 text-zinc-400 hover:text-zinc-300 border border-zinc-700/50"
+            }`}
+            title={inVR ? "Exit VR" : vrSupported ? "Enter VR" : "Enter VR (may not be available)"}
+          >
+            <Glasses size={16} />
+            {inVR ? "Exit VR" : "Enter VR"}
+          </button>
+        )}
+
+        {/* Gyroscope toggle — visible in imagination mode on mobile (not in VR) */}
+        {isInImagination && gyroAvailable && !inVR && (
+          <button
+            onClick={() => {
+              const next = !gyroActive;
+              panoRef.current?.setGyroEnabled(next);
+              setGyroActive(next);
+            }}
+            className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center transition-all ${
+              gyroActive
+                ? "bg-emerald-600/90 text-white shadow-lg shadow-emerald-600/30"
+                : "bg-zinc-950/80 text-zinc-300 hover:text-white"
+            }`}
+            title={gyroActive ? "Disable gyroscope" : "Enable gyroscope look"}
+          >
+            <Compass size={18} />
+          </button>
+        )}
+
         <button
           onClick={() => setMuteAmbient((m) => !m)}
           className="w-10 h-10 rounded-full bg-zinc-950/80 backdrop-blur-md flex items-center justify-center text-zinc-300 hover:text-white transition-colors"
@@ -834,6 +978,29 @@ export function ImmersiveView({
           <X size={20} />
         </button>
       </div>
+
+      {/* ── VR Error Message ── */}
+      <AnimatePresence>
+        {vrError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="absolute top-20 right-6 z-20 max-w-sm"
+          >
+            <div className="bg-red-950/90 backdrop-blur-md border border-red-700/50 rounded-lg p-3 text-xs text-red-200 shadow-lg">
+              <p className="font-semibold mb-1">VR Not Available</p>
+              <p className="text-red-300/80">{vrError}</p>
+              <button
+                onClick={() => setVrError(null)}
+                className="mt-2 text-red-400 hover:text-red-300 underline text-[10px]"
+              >
+                Dismiss
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Bottom Center: Imagine This button / input ── */}
       {imagineState !== "generating" && imagineState !== "error" && (
@@ -897,7 +1064,13 @@ export function ImmersiveView({
                 className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-950/80 backdrop-blur-md border border-purple-500/30 text-purple-300 text-xs font-medium"
               >
                 <Sparkles size={14} className="text-purple-400" />
-                {panoUrl ? "AI-Generated World — Drag to look around" : "AI-Generated World"}
+                {inVR
+                  ? "AI-Generated World — VR Mode Active"
+                  : gyroActive
+                  ? "AI-Generated World — Gyroscope Active"
+                  : panoUrl
+                  ? "AI-Generated World — Drag to look around"
+                  : "AI-Generated World"}
               </motion.div>
             )}
           </AnimatePresence>

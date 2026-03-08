@@ -254,6 +254,12 @@ export class AmbientEngine {
     this._playing = false;
   }
 
+  /** Immediately kill all audio — no fade, used on component unmount */
+  kill() {
+    this._playing = false;
+    this._cleanup();
+  }
+
   /** Set volume (0-1 scale, mapped to maxVolume) */
   setVolume(v: number) {
     if (!this.masterGain || !this.ctx) return;

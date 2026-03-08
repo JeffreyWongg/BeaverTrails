@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "OpenRouter API key not configured" }, { status: 500 });
     }
 
-    const elevenlabsKey = process.env.ELEVEN_API_KEY;
+    const elevenlabsKey = process.env.ELEVENLABS_API_KEY;
     const voiceId = process.env.ELEVENLABS_CHARLOTTE_VOICE_ID || "XB0fDUnXU5powFXDhCwa";
 
     // Step 1: Generate narration text (skip if pre-generated text provided)
