@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { motion, useTransform, type MotionValue } from "framer-motion";
+import { motion, useTransform, useSpring, type MotionValue } from "framer-motion";
 import dynamic from "next/dynamic";
 
 const Globe = dynamic(() => import("./Globe"), {
@@ -17,8 +17,8 @@ export default function HeroGlobe({ scrollProgress }: HeroGlobeProps) {
   const [dimensions, setDimensions] = useState({ width: 1200, height: 1200 });
 
   const updateDimensions = useCallback(() => {
-    // Globe size based on viewport, not container - can grow freely
-    const size = Math.max(window.innerWidth, window.innerHeight) * 1.5;
+    // Globe size based on viewport — kept moderate for scroll performance
+    const size = Math.max(window.innerWidth, window.innerHeight) * 1.2;
     setDimensions({ width: size, height: size });
   }, []);
 
@@ -42,26 +42,33 @@ export default function HeroGlobe({ scrollProgress }: HeroGlobeProps) {
     return () => window.removeEventListener("resize", updateDimensions);
   }, [updateDimensions]);
 
+  // Smooth the raw scroll progress with a spring so transforms interpolate fluidly
+  const smoothProgress = useSpring(scrollProgress, {
+    stiffness: 80,
+    damping: 30,
+    restDelta: 0.001,
+  });
+
   // Transform scroll progress to globe position across 3 sections (5 viewport heights)
   // Section 1 (0–0.2): hero, right side, large
-  // Transition (0.2–0.5): shrink + move left
-  // Section 2 (0.5–0.6): left column, small
-  // Transition (0.6–0.85): swoop to bottom center, grow large
-  // Section 3 (0.85–1): bottom center, very large, low position (line effect)
+  // Transition (0.2–0.5): shrink + move to left column center
+  // Section 2 (0.5–0.6): centered in left column, medium
+  // Transition (0.6–0.85): swoop to bottom center
+  // Section 3 (0.85–1): centered below features, large
   const x = useTransform(
-    scrollProgress,
+    smoothProgress,
     [0, 0.2, 0.5, 0.6, 0.85, 1],
-    ["25%", "25%", "0%", "0%", "17%", "17%"]
+    ["38%", "38%", "-12%", "-12%", "5%", "5%"]
   );
   const y = useTransform(
-    scrollProgress,
+    smoothProgress,
     [0, 0.2, 0.5, 0.6, 0.85, 1],
-    ["-50%", "-50%", "-50%", "-50%", "5%", "5%"]
+    ["-50%", "-50%", "-47%", "-47%", "-5%", "-5%"]
   );
   const scale = useTransform(
-    scrollProgress,
+    smoothProgress,
     [0, 0.2, 0.5, 0.6, 0.85, 1],
-    [1, 1, 0.3, 0.3, 1.4, 1.4]
+    [1, 1, 0.5, 0.5, 1.1, 1.1]
   );
 
   return (
@@ -73,6 +80,14 @@ export default function HeroGlobe({ scrollProgress }: HeroGlobeProps) {
         x,
         y,
         scale,
+        opacity: 1,
+        // Fade only the very outer rim of the sphere so dark ocean edges
+        // blend softly into the cream background without blurring the globe body
+        WebkitMaskImage:
+          "radial-gradient(ellipse 58% 58% at center, black 58%, transparent 88%)",
+        maskImage:
+          "radial-gradient(ellipse 58% 58% at center, black 58%, transparent 88%)",
+        willChange: "transform",
       }}
     >
       <Globe width={dimensions.width} height={dimensions.height} />

@@ -13,9 +13,10 @@ interface TripMapProps {
   selectedStop: Stop | null;
   allStops: Stop[];
   onNavigate: (stop: Stop) => void;
+  isLeftPanelOpen?: boolean;
 }
 
-export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: TripMapProps) {
+export function TripMap({ onStopClick, selectedStop, allStops, onNavigate, isLeftPanelOpen = false }: TripMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
@@ -87,8 +88,17 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
 
     mapRef.current = map;
 
+    // Keep the Mapbox canvas in sync with the container size so there are
+    // never any background-colored gaps at the edges.
+    const ro = new ResizeObserver(() => {
+      map.resize();
+    });
+    ro.observe(mapContainer.current);
+
     map.on("load", () => {
       setMapLoaded(true);
+      // Extra resize after first paint to catch any layout settling
+      requestAnimationFrame(() => map.resize());
 
       setTimeout(() => {
         const firstCityCoords = itinerary[0].city_coordinates;
@@ -107,6 +117,7 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
     });
 
     return () => {
+      ro.disconnect();
       map.remove();
       mapRef.current = null;
     };
@@ -228,9 +239,9 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
           source: "route-source",
           layout: { "line-join": "round", "line-cap": "round" },
           paint: {
-            "line-color": "#064e3b",
+            "line-color": "#a0522d",
             "line-width": 6,
-            "line-opacity": 0.4,
+            "line-opacity": 0.25,
           },
         });
 
@@ -240,9 +251,10 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
           source: "route-source",
           layout: { "line-join": "round", "line-cap": "round" },
           paint: {
-            "line-color": "#34d399",
+            "line-color": "#D97B4A",
             "line-width": 3,
-            "line-opacity": 0.9,
+            "line-opacity": 0.85,
+            "line-dasharray": [2, 1.5],
           },
         });
       }
@@ -312,23 +324,29 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
     <>
       <div ref={mapContainer} className="w-full h-full" />
       {selectedStop && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 pointer-events-auto">
+        <div 
+          className={`absolute bottom-6 z-30 flex items-center gap-2 pointer-events-auto ${
+            isLeftPanelOpen 
+              ? 'left-[calc((320px+100%)/2)] -translate-x-1/2' 
+              : 'left-1/2 -translate-x-1/2'
+          }`}
+        >
           <button
             onClick={handlePrev}
             disabled={!hasPrev}
-            className="w-10 h-10 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-700 flex items-center justify-center text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-10 h-10 rounded-full bg-white/90 backdrop-blur-md border border-gray-200 flex items-center justify-center text-gray-500 hover:text-[#D97B4A] hover:border-[#C89A7A]/50 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            <ChevronLeft size={20} />
+            <ChevronLeft size={18} />
           </button>
 
-          <div className="bg-zinc-950/80 backdrop-blur-md border border-zinc-700 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[200px]">
-            <span className="text-[10px] uppercase tracking-wider font-bold text-emerald-400 mb-0.5">
+          <div className="bg-white/90 backdrop-blur-md border border-gray-200 rounded-2xl px-5 py-3 flex flex-col items-center min-w-[200px] shadow-sm">
+            <span className="text-[10px] uppercase tracking-[0.15em] font-medium text-[#D97B4A] mb-0.5">
               {getTypeLabel(selectedStop.type)}
             </span>
-            <span className="text-sm font-bold text-white text-center leading-tight">
+            <span className="text-sm font-semibold text-gray-900 text-center leading-tight">
               {selectedStop.name}
             </span>
-            <span className="text-[10px] text-zinc-500 mt-1">
+            <span className="text-[10px] text-gray-400 mt-1">
               {currentIndex + 1} of {allStops.length}
             </span>
           </div>
@@ -336,9 +354,9 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
           <button
             onClick={handleNext}
             disabled={!hasNext}
-            className="w-10 h-10 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-700 flex items-center justify-center text-zinc-300 hover:text-emerald-400 hover:border-emerald-500/50 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-10 h-10 rounded-full bg-white/90 backdrop-blur-md border border-gray-200 flex items-center justify-center text-gray-500 hover:text-[#D97B4A] hover:border-[#C89A7A]/50 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            <ChevronRight size={20} />
+            <ChevronRight size={18} />
           </button>
         </div>
       )}

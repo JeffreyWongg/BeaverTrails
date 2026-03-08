@@ -84,14 +84,13 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
 
     setIsGlobeReady(true);
 
-    // Start at first city (Toronto)
-    const startCity = ROUTE[0];
-    globe.pointOfView({ lat: startCity.lat, lng: startCity.lng, altitude: 2.0 }, 0);
+    // Start centered on central Canada so the full country is visible on load
+    globe.pointOfView({ lat: 58, lng: -96, altitude: 2.0 }, 0);
 
-    // Set initial ring at first city
+    // Set initial ring at first city in the route
     setCurrentRing({
-      lat: startCity.lat,
-      lng: startCity.lng,
+      lat: ROUTE[0].lat,
+      lng: ROUTE[0].lng,
       maxR: 4,
       propagationSpeed: 2,
       repeatPeriod: 1400,
@@ -105,7 +104,15 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
       // non-critical
     }
 
-    // Adjust lighting — let the texture show its natural colors
+    // Cap pixel ratio for performance — no need for retina-level detail on a background element
+    try {
+      const renderer = globe.renderer();
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    } catch {
+      // non-critical
+    }
+
+    // Brighter lighting to look vivid against the light cream background
     try {
       const scene = globe.scene();
       if (scene) {
@@ -114,7 +121,7 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
             child.intensity = 1.2;
           }
           if (child.type === "AmbientLight" && child.intensity !== undefined) {
-            child.intensity = 0.6;
+            child.intensity = 0.9;
           }
         });
       }
@@ -193,14 +200,14 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
       globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
       backgroundColor="rgba(0,0,0,0)"
       showAtmosphere={true}
-      atmosphereColor="#4a90d9"
-      atmosphereAltitude={0.12}
+      atmosphereColor="#9a6a3a"
+      atmosphereAltitude={0.1}
       // Canada highlight
       polygonsData={canadaFeatures}
       polygonAltitude={0.006}
-      polygonCapColor={() => "rgba(255, 255, 255, 0.08)"}
-      polygonSideColor={() => "rgba(180, 220, 255, 0.05)"}
-      polygonStrokeColor={() => "rgba(180, 220, 255, 0.25)"}
+      polygonCapColor={() => "rgba(217, 123, 74, 0.08)"}
+      polygonSideColor={() => "rgba(200, 154, 122, 0.05)"}
+      polygonStrokeColor={() => "rgba(217, 123, 74, 0.25)"}
       polygonLabel={() => ""}
       // Arcs between cities
       arcsData={arcsData}
@@ -208,7 +215,7 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
       arcStartLng="startLng"
       arcEndLat="endLat"
       arcEndLng="endLng"
-      arcColor={() => "rgba(110, 200, 170, 0.6)"}
+      arcColor={() => "rgba(217, 123, 74, 0.6)"}
       arcDashLength={0.4}
       arcDashGap={0.2}
       arcDashAnimateTime={2000}
@@ -216,13 +223,13 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
       ringsData={currentRing ? [currentRing] : []}
       ringLat="lat"
       ringLng="lng"
-      ringColor={() => "rgba(110, 200, 170, 0.4)"}
+      ringColor={() => "rgba(217, 123, 74, 0.4)"}
       ringMaxRadius="maxR"
       ringPropagationSpeed="propagationSpeed"
       ringRepeatPeriod="repeatPeriod"
       ringAltitude={0.02}
-      // Interaction
-      enablePointerInteraction={true}
+      // Interaction — disabled for performance (background element)
+      enablePointerInteraction={false}
       animateIn={false}
       onGlobeReady={handleGlobeReady}
     />

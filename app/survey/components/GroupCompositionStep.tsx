@@ -6,18 +6,18 @@ export function GroupCompositionStep() {
   const { groupComposition, setField } = useSurveyStore();
 
   const options = [
-    { value: "Solo", label: "Going Solo", desc: "Finding myself on the trail", icon: UserCircle },
-    { value: "Couple", label: "Couple Retreat", desc: "Romantic getaway", icon: Heart },
-    { value: "Family", label: "Family Vacation", desc: "Making memories together", icon: UsersRound },
-    { value: "Friends", label: "Friends Group", desc: "Adventure with the squad", icon: Beer },
+    { value: "Solo", label: "Solo", icon: UserCircle },
+    { value: "Couple", label: "Couple", icon: Heart },
+    { value: "Family", label: "Family", icon: UsersRound },
+    { value: "Friends", label: "Friends", icon: Beer },
   ];
 
   return (
     <div className="flex flex-col items-center">
-      <h2 className="text-3xl font-bold mb-8 text-center bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400">
+      <h2 className="text-2xl font-semibold text-gray-900 mb-8 text-center">
         Who&apos;s traveling?
       </h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+      <div className="grid grid-cols-2 gap-3 w-full max-w-md">
         {options.map((option, idx) => {
           const isSelected = groupComposition === option.value;
           const Icon = option.icon;
@@ -25,21 +25,20 @@ export function GroupCompositionStep() {
           return (
             <motion.button
               key={option.value}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.1 }}
+              transition={{ delay: idx * 0.05 }}
               whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.98 }}
+              whileTap={{ scale: 0.97 }}
               onClick={() => setField("groupComposition", option.value)}
-              className={`p-6 rounded-2xl flex flex-col items-center text-center gap-3 border transition-all ${
+              className={`p-6 rounded-xl flex flex-col items-center gap-3 border transition-all ${
                 isSelected
-                  ? "border-amber-500 bg-amber-500/20 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.2)]"
-                  : "border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-zinc-700 hover:bg-zinc-800"
+                  ? "border-[#D97B4A] bg-[#D97B4A]/8 text-[#D97B4A]"
+                  : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50"
               }`}
             >
-              <Icon size={48} className={isSelected ? "text-amber-400 mb-2" : "text-zinc-600 mb-2"} />
-              <span className="font-bold text-xl text-white">{option.label}</span>
-              <span className={`text-sm ${isSelected ? "text-amber-200/70" : "text-zinc-500"}`}>{option.desc}</span>
+              <Icon size={28} className={isSelected ? "text-[#D97B4A]" : "text-gray-400"} />
+              <span className="font-medium">{option.label}</span>
             </motion.button>
           );
         })}

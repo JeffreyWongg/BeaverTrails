@@ -16,11 +16,9 @@ export function StartingCityStep() {
   const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
-    // Debounce the mapbox search
     const delayDebounceFn = setTimeout(async () => {
       if (query.length > 2 && query !== startingCity?.name) {
         setIsLoading(true);
-        // Only searching places in Canada (country=ca), requesting city types
         const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
         if (!MAPBOX_TOKEN) {
            console.error("Mapbox token missing");
@@ -57,61 +55,56 @@ export function StartingCityStep() {
 
   return (
     <div className="flex flex-col items-center w-full max-w-xl mx-auto">
-      <div className="mb-6 p-4 bg-sky-500/10 rounded-full border border-sky-500/20">
-         <MapPin size={48} className="text-sky-400" />
-      </div>
-      
-      <h2 className="text-3xl font-bold mb-4 text-center bg-clip-text text-transparent bg-gradient-to-r from-white to-zinc-400">
+      <h2 className="text-2xl font-semibold text-gray-900 mb-2 text-center">
         Where are you departing from?
       </h2>
-      <p className="text-zinc-500 mb-8 text-center">Enter a Canadian city</p>
+      <p className="text-gray-500 mb-8 text-center text-sm">Enter a Canadian city</p>
 
       <div className="relative w-full">
         <div className="relative flex items-center">
-          <Search className="absolute left-4 text-zinc-400" size={20} />
+          <Search className="absolute left-4 text-gray-400" size={18} />
           <input
             type="text"
-            className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-xl py-4 pl-12 pr-12 focus:outline-none focus:ring-2 focus:ring-sky-500 transition-all text-lg"
+            className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl py-3.5 pl-11 pr-11 focus:outline-none focus:ring-2 focus:ring-[#D97B4A]/20 focus:border-[#D97B4A]/40 transition-all placeholder:text-gray-400"
             placeholder="e.g. Toronto, Vancouver, Montreal"
             value={query}
             onChange={(e) => {
                setQuery(e.target.value);
                if (startingCity && e.target.value !== startingCity.name) {
-                 setField("startingCity", null); // Clear selection if edited
+                 setField("startingCity", null);
                }
             }}
             onFocus={() => { if (suggestions.length > 0) setShowDropdown(true); }}
             onBlur={() => setShowDropdown(false)}
           />
           {isLoading && (
-             <Loader2 className="absolute right-4 animate-spin text-sky-400" size={20} />
+             <Loader2 className="absolute right-4 animate-spin text-gray-400" size={18} />
           )}
         </div>
 
-        {/* Autocomplete Dropdown */}
         {showDropdown && suggestions.length > 0 && (
-          <ul className="absolute z-50 w-full mt-2 bg-zinc-800 border border-zinc-700 rounded-xl overflow-hidden shadow-2xl max-h-60 overflow-y-auto">
+          <ul className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-lg max-h-60 overflow-y-auto">
             {suggestions.map((sugg) => (
               <li
                 key={sugg.id}
                 onMouseDown={(e) => {
-                   e.preventDefault(); // Prevent input from losing focus immediately
+                   e.preventDefault();
                    handleSelect(sugg);
                 }}
-                className="px-4 py-3 hover:bg-sky-500/20 hover:text-sky-300 cursor-pointer text-zinc-300 transition-colors flex items-center gap-3 border-b border-zinc-700/50 last:border-0"
+                className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-3 border-b border-gray-100 last:border-0"
               >
-                <MapPin size={16} className="text-zinc-500 flex-shrink-0" />
+                <MapPin size={14} className="text-gray-400 flex-shrink-0" />
                 <span className="truncate">{sugg.place_name}</span>
               </li>
             ))}
           </ul>
         )}
       </div>
-      
+
       {startingCity && (
-         <div className="mt-8 text-sky-400 font-medium animate-pulse flex items-center gap-2 bg-sky-500/10 px-4 py-2 rounded-full border border-sky-500/20">
-            <span className="w-2 h-2 rounded-full bg-sky-400"></span>
-            Starting from: {startingCity.name}
+         <div className="mt-6 text-[#D97B4A] text-sm font-medium flex items-center gap-2 bg-[#D97B4A]/8 px-4 py-2 rounded-full border border-[#D97B4A]/20">
+            <MapPin size={14} className="text-[#D97B4A]" />
+            {startingCity.name}
          </div>
       )}
     </div>
