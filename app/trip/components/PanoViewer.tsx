@@ -140,19 +140,10 @@ export const PanoViewer = forwardRef<PanoViewerHandle, PanoViewerProps>(
               console.log("[PanoViewer] Entering mono VR mode (fullscreen + gyroscope)");
               state.current.isPolyfillVR = true;
 
-              // Request fullscreen
-              try {
-                if (container.requestFullscreen) {
-                  await container.requestFullscreen();
-                } else if ((container as unknown as { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen) {
-                  await (container as unknown as { webkitRequestFullscreen: () => Promise<void> }).webkitRequestFullscreen();
-                }
-              } catch (fsErr) {
-                console.warn("[PanoViewer] Fullscreen request failed:", fsErr);
-                // Continue anyway — still works without fullscreen
-              }
-
-              // Enable gyroscope if available
+              // ⚠️ Request gyroscope permission FIRST — iOS requires this to
+              // happen during a user gesture (the button tap). If we await
+              // fullscreen first, the gesture context is consumed and iOS
+              // silently rejects the permission request.
               state.current.gyroEnabled = true;
               if (typeof DeviceOrientationEvent !== "undefined") {
                 const doe = DeviceOrientationEvent as unknown as {
@@ -164,11 +155,26 @@ export const PanoViewer = forwardRef<PanoViewerHandle, PanoViewerProps>(
                     if (permission !== "granted") {
                       console.warn("[PanoViewer] Gyroscope permission denied");
                       state.current.gyroEnabled = false;
+                    } else {
+                      console.log("[PanoViewer] Gyroscope permission granted");
                     }
-                  } catch {
+                  } catch (gyroErr) {
+                    console.warn("[PanoViewer] Gyroscope permission error:", gyroErr);
                     state.current.gyroEnabled = false;
                   }
                 }
+              }
+
+              // Now request fullscreen (after gyro permission is secured)
+              try {
+                if (container.requestFullscreen) {
+                  await container.requestFullscreen();
+                } else if ((container as unknown as { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen) {
+                  await (container as unknown as { webkitRequestFullscreen: () => Promise<void> }).webkitRequestFullscreen();
+                }
+              } catch (fsErr) {
+                console.warn("[PanoViewer] Fullscreen request failed:", fsErr);
+                // Continue anyway — still works without fullscreen
               }
 
               // Listen for fullscreen exit to clean up
