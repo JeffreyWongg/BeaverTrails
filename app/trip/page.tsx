@@ -2,19 +2,19 @@
 
 import { useSurveyStore } from "../../lib/store";
 import { useRouter } from "next/navigation";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Stop } from "../../types";
+import { getStopKey } from "../../lib/streetView";
 import { AnimatePresence } from "framer-motion";
 
 import { TripMap } from "./components/TripMap";
 import { TripSidebar } from "./components/TripSidebar";
 import { ImmersiveDrawer } from "./components/ImmersiveDrawer";
-import { TripAssistant } from "./components/TripAssistant";
 import { ImmersiveView } from "./components/ImmersiveView";
-import { TripGuide } from "./components/TripGuide";
+import { TripAssistant } from "./components/TripAssistant";
 
 export default function TripPage() {
-  const { itinerary, immersiveConfig, setField, streetViewCoverage } = useSurveyStore();
+  const { itinerary, immersiveConfig, narrationScripts, setField } = useSurveyStore();
   const router = useRouter();
 
   const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
@@ -46,6 +46,29 @@ export default function TripPage() {
     return stops;
   }, [itinerary]);
 
+  useEffect(() => {
+    if (!itinerary || itinerary.length === 0) return;
+
+    const stops = allStops.map((s) => ({
+      key: getStopKey(s),
+      name: s.name,
+      type: s.type,
+      notes: s.notes || s.description || "",
+    }));
+
+    fetch("/api/pregenerate-narrations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stops, timeOfDay: "Day", season: "Summer" }),
+    })
+      .then((r) => r.json())
+      .then(({ scripts }) => {
+        if (scripts) setField("narrationScripts", { ...narrationScripts, ...scripts });
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itinerary]);
+
   const handleEnterImmersive = (stop: Stop, time: string, season: string) => {
     setField("immersiveConfig", { stop, time, season });
   };
@@ -68,6 +91,16 @@ export default function TripPage() {
     );
   }
 
+  const immersiveIndex =
+    immersiveConfig && allStops.length > 0
+      ? allStops.findIndex(
+          (s) =>
+            s.name === immersiveConfig.stop.name &&
+            s.coordinates[0] === immersiveConfig.stop.coordinates[0] &&
+            s.coordinates[1] === immersiveConfig.stop.coordinates[1]
+        )
+      : -1;
+
   return (
     <div className="w-full h-screen overflow-hidden flex bg-zinc-950 text-white">
       <div className="w-[70%] h-full relative">
@@ -89,7 +122,6 @@ export default function TripPage() {
       </div>
 
       <TripAssistant onEnterImmersive={handleEnterImmersive} />
-      <TripGuide onEnterImmersive={handleEnterImmersive} />
 
       {/* Full-screen Immersive View */}
       <AnimatePresence>
@@ -98,12 +130,8 @@ export default function TripPage() {
             stop={immersiveConfig.stop}
             initialTime={immersiveConfig.time}
             initialSeason={immersiveConfig.season}
-            hasStreetView={
-              streetViewCoverage[
-                immersiveConfig.stop.id ||
-                  `${immersiveConfig.stop.name}_${immersiveConfig.stop.coordinates[0].toFixed(4)}_${immersiveConfig.stop.coordinates[1].toFixed(4)}`
-              ] === true
-            }
+            stops={allStops}
+            initialIndex={immersiveIndex >= 0 ? immersiveIndex : 0}
             onClose={handleCloseImmersive}
           />
         )}

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Day, Stop } from '../types';
+import { Day, Stop, TikTokClip } from '../types';
 
 export interface SurveyState {
   ageRange: string;
@@ -9,6 +9,9 @@ export interface SurveyState {
   budgetPerPerson: string;
   luggageAmount: string;
   startingCity: { name: string; coordinates?: [number, number] } | null;
+
+  // TikTok inspiration clips added during survey
+  tiktokClips: TikTokClip[];
 
   // Results from AI Step 1
   travellerArchetype: string | null;
@@ -27,6 +30,12 @@ export interface SurveyState {
   // Phase 5: Immersive view state
   immersiveConfig: { stop: Stop; time: string; season: string } | null;
 
+  // Narration script cache: keyed by `${stopKey}_${timeOfDay}_${season}`
+  narrationScripts: Record<string, string>;
+
+  // Per-stop Q&A chat history, keyed by stopKey
+  immersiveChatHistory: Record<string, Array<{ q: string; a: string }>>;
+
   // Actions
   setField: <K extends keyof Omit<SurveyState, 'setField' | 'resetSurvey'>>(
     field: K,
@@ -43,6 +52,7 @@ const initialState = {
   budgetPerPerson: '',
   luggageAmount: '',
   startingCity: null,
+  tiktokClips: [],
   travellerArchetype: null,
   recommendedProvinces: [],
   activities: [],
@@ -50,6 +60,8 @@ const initialState = {
   itinerary: [],
   streetViewCoverage: {},
   immersiveConfig: null,
+  narrationScripts: {},
+  immersiveChatHistory: {},
 };
 
 export const useSurveyStore = create<SurveyState>()((set) => ({

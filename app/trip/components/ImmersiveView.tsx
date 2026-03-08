@@ -2,130 +2,102 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
+import {
+  X, Mic, MicOff, Volume2, VolumeX,
+  ChevronLeft, ChevronRight, Sparkles, ArrowLeft, Loader2, Send,
+} from "lucide-react";
 import { useSurveyStore } from "../../../lib/store";
 import { Stop } from "../../../types";
+import { PanoViewer } from "./PanoViewer";
+import { AmbientEngine } from "./AmbientEngine";
 
-// Ambient sound URLs (replace with actual hosted audio files)
-// TODO: Host proper ambient audio files and update these URLs
-const AMBIENT_SOUNDS: Record<string, string> = {
-  park: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-  mountain: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-  beach: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-  restaurant: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-  market: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-  historic: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-  museum: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-  attraction: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-  default: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
-};
-
-const TIME_FILTERS: Record<string, string> = {
-  Dawn: "sepia(0.5) hue-rotate(-20deg) brightness(0.8) blur(0px) saturate(1.2)",
-  Day: "none",
-  Dusk: "sepia(0.4) hue-rotate(10deg) contrast(1.1) brightness(0.85)",
-  Night: "brightness(0.4) saturate(0.3) hue-rotate(200deg)",
-};
-
-const SEASON_FILTERS: Record<string, string> = {
-  Spring: "hue-rotate(-5deg) brightness(1.05) saturate(1.2)",
-  Summer: "none",
-  Fall: "sepia(0.2) hue-rotate(15deg) saturate(1.1)",
-  Winter: "saturate(0.4) brightness(1.1) hue-rotate(180deg)",
-};
+type ImagineState = "idle" | "input" | "generating" | "ready" | "error";
 
 interface ImmersiveViewProps {
   stop: Stop;
   initialTime: string;
   initialSeason: string;
-  hasStreetView: boolean;
+  stops: Stop[];
+  initialIndex: number;
   onClose: () => void;
 }
 
 export function ImmersiveView({
-  stop,
+  stop: initialStop,
   initialTime,
   initialSeason,
-  hasStreetView,
+  stops,
+  initialIndex,
   onClose,
 }: ImmersiveViewProps) {
   const streetViewRef = useRef<HTMLDivElement>(null);
   const mapboxRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const ambientRef = useRef<AmbientEngine | null>(null);
   const narrationAudioRef = useRef<HTMLAudioElement | null>(null);
   const mapboxMapRef = useRef<unknown>(null);
   const bearingAnimRef = useRef<number | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [timeOfDay, setTimeOfDay] = useState(initialTime || "Day");
-  const [season, setSeason] = useState(initialSeason || "Summer");
+  const timeOfDay = initialTime || "Day";
+  const season = initialSeason || "Summer";
   const [isNarrating, setIsNarrating] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [muteAmbient, setMuteAmbient] = useState(false);
   const [qaOverlay, setQaOverlay] = useState<{ q: string; a: string } | null>(null);
   const [qaFading, setQaFading] = useState(false);
+  const [textQuestion, setTextQuestion] = useState("");
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [currentStop, setCurrentStop] = useState<Stop>(initialStop);
+
+  // --- Imagination Mode State ---
+  const [imagineState, setImagineState] = useState<ImagineState>("idle");
+  const [imaginePrompt, setImaginePrompt] = useState("");
+  const [panoUrl, setPanoUrl] = useState<string | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [worldCaption, setWorldCaption] = useState<string | null>(null);
+  const [genProgress, setGenProgress] = useState("Starting generation...");
+  const [genError, setGenError] = useState("");
+  const [genElapsed, setGenElapsed] = useState(0);
+  const genTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // (PanoViewer handles its own drag interaction)
 
   const { streetViewCoverage } = useSurveyStore();
+
+  useEffect(() => {
+    setCurrentIndex(initialIndex);
+    setCurrentStop(initialStop);
+    // Reset imagination when stop changes
+    setImagineState("idle");
+    setPanoUrl(null);
+    setThumbnailUrl(null);
+    setImaginePrompt("");
+  }, [initialIndex, initialStop]);
+
   const stopKey =
-    stop.id ||
-    `${stop.name}_${stop.coordinates[0].toFixed(4)}_${stop.coordinates[1].toFixed(4)}`;
-  const svAvailable = hasStreetView || streetViewCoverage[stopKey] === true;
+    currentStop.id ||
+    `${currentStop.name}_${currentStop.coordinates[0].toFixed(4)}_${currentStop.coordinates[1].toFixed(4)}`;
+  const svAvailable = streetViewCoverage[stopKey] === true;
 
-  // Combined CSS filter
-  const combinedFilter = () => {
-    const tf = TIME_FILTERS[timeOfDay] || "none";
-    const sf = SEASON_FILTERS[season] || "none";
-    if (tf === "none" && sf === "none") return "none";
-    if (tf === "none") return sf;
-    if (sf === "none") return tf;
-    return `${tf} ${sf}`;
-  };
-
-  // Initialize ambient audio
+  // ── Ambient Audio (procedural via Web Audio API) ──
   useEffect(() => {
-    const soundKey = Object.keys(AMBIENT_SOUNDS).find((k) =>
-      stop.type.toLowerCase().includes(k)
-    ) || "default";
-    const url = AMBIENT_SOUNDS[soundKey];
-
-    const audio = new Audio(url);
-    audio.loop = true;
-    audio.volume = 0;
-    audioRef.current = audio;
-
-    audio.play().catch(() => {});
-
-    // Fade in over 1.5s
-    let vol = 0;
-    const fadeIn = setInterval(() => {
-      vol = Math.min(vol + 0.035, 0.35);
-      audio.volume = vol;
-      if (vol >= 0.35) clearInterval(fadeIn);
-    }, 50);
-
+    const engine = new AmbientEngine();
+    ambientRef.current = engine;
+    // Build a text hint from the stop for the engine to pick a mood
+    const hint = `${currentStop.name} ${currentStop.type} ${currentStop.description || ""} ${currentStop.notes || ""}`;
+    engine.play(hint, 0.36);
     return () => {
-      clearInterval(fadeIn);
-      // Fade out on unmount
-      let v = audio.volume;
-      const fadeOut = setInterval(() => {
-        v = Math.max(v - 0.05, 0);
-        audio.volume = v;
-        if (v <= 0) {
-          clearInterval(fadeOut);
-          audio.pause();
-          audio.src = "";
-        }
-      }, 50);
+      engine.stop();
+      ambientRef.current = null;
     };
-  }, [stop.type]);
+  }, [currentStop]);
 
-  // Mute/unmute ambient
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = muteAmbient ? 0 : 0.35;
-    }
+    ambientRef.current?.setMuted(muteAmbient);
   }, [muteAmbient]);
 
-  // Initialize Street View panorama
+  // ── Street View ──
   useEffect(() => {
     if (!svAvailable || !streetViewRef.current) return;
 
@@ -133,7 +105,7 @@ export function ImmersiveView({
       if (!streetViewRef.current) return;
       try {
         new google.maps.StreetViewPanorama(streetViewRef.current, {
-          position: { lat: stop.coordinates[1], lng: stop.coordinates[0] },
+          position: { lat: currentStop.coordinates[1], lng: currentStop.coordinates[0] },
           pov: { heading: 0, pitch: 0 },
           zoom: 1,
           disableDefaultUI: true,
@@ -141,7 +113,7 @@ export function ImmersiveView({
           motionTracking: false,
         });
       } catch {
-        // StreetView not available
+        /* StreetView not available */
       }
     };
 
@@ -155,9 +127,9 @@ export function ImmersiveView({
     }
 
     return () => {};
-  }, [svAvailable, stop.coordinates]);
+  }, [svAvailable, currentStop]);
 
-  // Initialize Mapbox fallback
+  // ── Mapbox Fallback ──
   useEffect(() => {
     if (svAvailable || !mapboxRef.current) return;
 
@@ -171,7 +143,7 @@ export function ImmersiveView({
       const mapInstance = new mapboxgl.default.Map({
         container: mapboxRef.current,
         style: "mapbox://styles/mapbox/satellite-streets-v12",
-        center: stop.coordinates,
+        center: currentStop.coordinates,
         zoom: 16,
         pitch: 70,
         bearing: 0,
@@ -197,10 +169,9 @@ export function ImmersiveView({
         (map as { remove: () => void }).remove();
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [svAvailable]);
+  }, [svAvailable, currentStop]);
 
-  // Fetch and play narration
+  // ── Narration ──
   const playNarration = useCallback(
     async (time: string, sea: string) => {
       setIsNarrating(true);
@@ -209,17 +180,15 @@ export function ImmersiveView({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            stopName: stop.name,
-            stopType: stop.type,
-            stopNotes: stop.notes || stop.description || "",
+            stopName: currentStop.name,
+            stopType: currentStop.type,
+            stopNotes: currentStop.notes || currentStop.description || "",
             timeOfDay: time,
             season: sea,
           }),
         });
 
-        if (narrationAudioRef.current) {
-          narrationAudioRef.current.pause();
-        }
+        if (narrationAudioRef.current) narrationAudioRef.current.pause();
 
         const contentType = res.headers.get("Content-Type") || "";
         if (contentType.includes("audio")) {
@@ -233,34 +202,62 @@ export function ImmersiveView({
           };
           await audio.play();
         } else {
-          // Fallback: text only (ElevenLabs not configured)
           setIsNarrating(false);
         }
       } catch {
         setIsNarrating(false);
       }
     },
-    [stop]
+    [currentStop]
   );
 
-  // Auto-play narration on mount
   useEffect(() => {
     playNarration(timeOfDay, season);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Re-trigger narration when time or season changes
-  const handleTimeChange = (time: string) => {
-    setTimeOfDay(time);
-    playNarration(time, season);
-  };
+  // ── Chat Q&A ──
+  const fetchAssistantAnswer = useCallback(
+    async (prompt: string) => {
+      const res = await fetch("/api/trip-assistant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            { role: "user", content: `[At ${currentStop.name}, ${timeOfDay}, ${season}]: ${prompt}` },
+          ],
+          trip: { id: "current", title: currentStop.name, days: [], travellerProfile: "" },
+          travelerProfile: "",
+        }),
+      });
 
-  const handleSeasonChange = (sea: string) => {
-    setSeason(sea);
-    playNarration(timeOfDay, sea);
-  };
+      let answer = "";
+      const reader = res.body?.getReader();
+      if (reader) {
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          for (const line of chunk.split("\n")) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith("data: ")) continue;
+            const data = trimmed.slice(6);
+            if (data === "[DONE]") break;
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.token) answer += parsed.token;
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      }
+      return answer;
+    },
+    [currentStop, timeOfDay, season]
+  );
 
-  // Voice Q&A
   const handleMic = useCallback(async () => {
     if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
       alert("Speech recognition not supported in this browser.");
@@ -273,77 +270,36 @@ export function ImmersiveView({
     recognition.lang = "en-CA";
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
-
     setIsListening(true);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recognition.onresult = async (event: any) => {
       setIsListening(false);
       const transcript = event.results[0][0].transcript;
-
       try {
-        const res = await fetch("/api/trip-assistant", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messages: [
-              {
-                role: "user",
-                content: `[At ${stop.name}, ${timeOfDay}, ${season}]: ${transcript}`,
-              },
-            ],
-            trip: { id: "current", title: stop.name, days: [], travellerProfile: "" },
-            travelerProfile: "",
-          }),
-        });
-
-        let answer = "";
-        const reader = res.body?.getReader();
-        if (reader) {
-          const decoder = new TextDecoder();
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value);
-            for (const line of chunk.split("\n")) {
-              if (line.startsWith("data: ")) {
-                const data = line.slice(6);
-                if (data === "[DONE]") break;
-                try {
-                  const parsed = JSON.parse(data);
-                  if (parsed.token) answer += parsed.token;
-                } catch {}
-              }
-            }
-          }
-        }
-
-        // Show overlay for 5s
+        const answer = await fetchAssistantAnswer(transcript);
         setQaOverlay({ q: transcript, a: answer });
         setQaFading(false);
 
-        // Play response via ElevenLabs
         const speakRes = await fetch("/api/speak", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            stopName: stop.name,
-            stopType: stop.type,
+            stopName: currentStop.name,
+            stopType: currentStop.type,
             stopNotes: answer,
             timeOfDay,
             season,
           }),
         });
-
-        const contentType = speakRes.headers.get("Content-Type") || "";
-        if (contentType.includes("audio")) {
+        const ct = speakRes.headers.get("Content-Type") || "";
+        if (ct.includes("audio")) {
           const blob = await speakRes.blob();
           const url = URL.createObjectURL(blob);
           const audio = new Audio(url);
           audio.onended = () => URL.revokeObjectURL(url);
           await audio.play();
         }
-
         setTimeout(() => {
           setQaFading(true);
           setTimeout(() => setQaOverlay(null), 1000);
@@ -356,33 +312,265 @@ export function ImmersiveView({
     recognition.onerror = () => setIsListening(false);
     recognition.onend = () => setIsListening(false);
     recognition.start();
-  }, [stop, timeOfDay, season]);
+  }, [fetchAssistantAnswer, currentStop.name, currentStop.type, timeOfDay, season]);
 
-  // Stop all audio immediately
+  const handleTextAsk = useCallback(
+    async (event: React.FormEvent) => {
+      event.preventDefault();
+      const trimmed = textQuestion.trim();
+      if (!trimmed) return;
+      setIsChatLoading(true);
+      try {
+        const answer = await fetchAssistantAnswer(trimmed);
+        setQaOverlay({ q: trimmed, a: answer });
+        setQaFading(false);
+
+        const speakRes = await fetch("/api/speak", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stopName: currentStop.name,
+            stopType: currentStop.type,
+            stopNotes: answer,
+            timeOfDay,
+            season,
+          }),
+        });
+        const ct = speakRes.headers.get("Content-Type") || "";
+        if (ct.includes("audio")) {
+          const blob = await speakRes.blob();
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          audio.onended = () => URL.revokeObjectURL(url);
+          await audio.play();
+        }
+        setTimeout(() => {
+          setQaFading(true);
+          setTimeout(() => setQaOverlay(null), 1000);
+        }, 5000);
+        setTextQuestion("");
+      } finally {
+        setIsChatLoading(false);
+      }
+    },
+    [textQuestion, fetchAssistantAnswer, currentStop.name, currentStop.type, timeOfDay, season]
+  );
+
+  // ── Kill Audio ──
   const killAllAudio = useCallback(() => {
     if (narrationAudioRef.current) {
       narrationAudioRef.current.pause();
       narrationAudioRef.current.src = "";
       narrationAudioRef.current = null;
     }
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = "";
-      audioRef.current = null;
-    }
+    ambientRef.current?.stop();
     setIsNarrating(false);
     setIsListening(false);
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => {
+    const bearingAnim = bearingAnimRef;
+    const poll = pollRef;
+    const genTimer = genTimerRef;
     return () => {
-      if (bearingAnimRef.current) cancelAnimationFrame(bearingAnimRef.current);
+      if (bearingAnim.current) cancelAnimationFrame(bearingAnim.current);
+      if (poll.current) clearInterval(poll.current);
+      if (genTimer.current) clearInterval(genTimer.current);
       killAllAudio();
     };
   }, [killAllAudio]);
 
-  const filterStyle = combinedFilter();
+  // ── Helper: narrate the imagined scene ──
+  const narrateImaginedScene = useCallback(
+    async (prompt: string, caption: string | null) => {
+      setIsNarrating(true);
+      try {
+        const description = caption || prompt;
+        const res = await fetch("/api/speak", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stopName: `${currentStop.name} — Imagined`,
+            stopType: "imagined",
+            stopNotes: `The traveler imagined: "${prompt}". Scene: ${description}. Briefly introduce what they're seeing in this AI-generated world.`,
+            timeOfDay,
+            season,
+          }),
+        });
+
+        if (narrationAudioRef.current) narrationAudioRef.current.pause();
+
+        const contentType = res.headers.get("Content-Type") || "";
+        if (contentType.includes("audio")) {
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          narrationAudioRef.current = audio;
+          audio.onended = () => {
+            setIsNarrating(false);
+            URL.revokeObjectURL(url);
+          };
+          await audio.play();
+        } else {
+          setIsNarrating(false);
+        }
+      } catch {
+        setIsNarrating(false);
+      }
+    },
+    [currentStop, timeOfDay, season]
+  );
+
+  // ── Imagination: Start Generation ──
+  const handleImagineSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      const prompt = imaginePrompt.trim();
+      if (!prompt) return;
+
+      // ── Stop all current audio immediately ──
+      if (narrationAudioRef.current) {
+        narrationAudioRef.current.pause();
+        narrationAudioRef.current.src = "";
+        narrationAudioRef.current = null;
+      }
+      setIsNarrating(false);
+      ambientRef.current?.stop(); // Silence ambient music during generation
+
+      setImagineState("generating");
+      setGenProgress("Sending to World Labs...");
+      setGenError("");
+      setGenElapsed(0);
+
+      // Start elapsed timer
+      genTimerRef.current = setInterval(() => {
+        setGenElapsed((prev) => prev + 1);
+      }, 1000);
+
+      try {
+        const res = await fetch("/api/imagine", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stopName: currentStop.name,
+            coordinates: currentStop.coordinates,
+            userPrompt: prompt,
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to start generation");
+        }
+
+        const { operationId, worldId: initialWorldId } = await res.json();
+        setGenProgress("World generation in progress...");
+
+        // Track the worldId as it becomes available
+        let knownWorldId = initialWorldId || "";
+
+        // Poll for completion every 4 seconds
+        pollRef.current = setInterval(async () => {
+          try {
+            // Build poll URL — include worldId if we have it (for direct pano polling)
+            let pollUrl = `/api/imagine?op=${operationId}`;
+            if (knownWorldId) pollUrl += `&worldId=${knownWorldId}`;
+
+            const pollRes = await fetch(pollUrl);
+            const pollData = await pollRes.json();
+
+            // Track worldId from response
+            if (pollData.worldId) knownWorldId = pollData.worldId;
+
+            // Update thumbnail/caption as they become available
+            if (pollData.thumbnailUrl) setThumbnailUrl(pollData.thumbnailUrl);
+            if (pollData.caption) setWorldCaption(pollData.caption);
+
+            if (pollData.error && pollData.done) {
+              clearInterval(pollRef.current!);
+              pollRef.current = null;
+              if (genTimerRef.current) { clearInterval(genTimerRef.current); genTimerRef.current = null; }
+              setGenError(typeof pollData.error === "string" ? pollData.error : "Generation failed.");
+              setImagineState("error");
+              return;
+            }
+
+            if (pollData.done && pollData.panoUrl) {
+              // Panorama is ready!
+              clearInterval(pollRef.current!);
+              pollRef.current = null;
+              if (genTimerRef.current) { clearInterval(genTimerRef.current); genTimerRef.current = null; }
+              console.log("[imagine] ✓ Pano ready:", pollData.panoUrl);
+              setPanoUrl(pollData.panoUrl);
+              setThumbnailUrl(pollData.thumbnailUrl || null);
+              setWorldCaption(pollData.caption || null);
+              setImagineState("ready");
+
+              // ── Start new ambient for the imagined scene ──
+              const sceneHint = `${prompt} ${pollData.caption || ""} ${currentStop.name}`;
+              const newEngine = new AmbientEngine();
+              ambientRef.current = newEngine;
+              newEngine.play(sceneHint, 0.36);
+
+              // ── AI narrates the new environment ──
+              narrateImaginedScene(prompt, pollData.caption || null);
+              return;
+            }
+
+            // Still generating or waiting for pano
+            setGenProgress(pollData.description || "Generating...");
+          } catch {
+            // Network error on poll — keep trying
+          }
+        }, 4000);
+      } catch (err: unknown) {
+        if (genTimerRef.current) { clearInterval(genTimerRef.current); genTimerRef.current = null; }
+        const msg = err instanceof Error ? err.message : String(err);
+        setGenError(msg);
+        setImagineState("error");
+      }
+    },
+    [imaginePrompt, currentStop, narrateImaginedScene]
+  );
+
+  const handleBackToStreetView = () => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    if (genTimerRef.current) { clearInterval(genTimerRef.current); genTimerRef.current = null; }
+    // Stop imagined-scene ambient
+    ambientRef.current?.stop();
+    // Restart location ambient
+    const hint = `${currentStop.name} ${currentStop.type} ${currentStop.description || ""} ${currentStop.notes || ""}`;
+    const engine = new AmbientEngine();
+    ambientRef.current = engine;
+    engine.play(hint, 0.36);
+
+    setImagineState("idle");
+    setPanoUrl(null);
+    setThumbnailUrl(null);
+    setWorldCaption(null);
+    setImaginePrompt("");
+    setGenError("");
+  };
+
+  // ── Navigation ──
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex >= 0 && currentIndex < stops.length - 1;
+
+  const handlePrevStop = () => {
+    if (!hasPrev) return;
+    const nextIndex = currentIndex - 1;
+    setCurrentIndex(nextIndex);
+    setCurrentStop(stops[nextIndex]);
+  };
+
+  const handleNextStop = () => {
+    if (!hasNext) return;
+    const nextIndex = currentIndex + 1;
+    setCurrentIndex(nextIndex);
+    setCurrentStop(stops[nextIndex]);
+  };
+
+  const isInImagination = imagineState === "ready";
 
   return (
     <motion.div
@@ -392,11 +580,8 @@ export function ImmersiveView({
       className="fixed inset-0 z-[100] bg-black"
       style={{ width: "100vw", height: "100vh" }}
     >
-      {/* Panorama/Map layer */}
-      <div
-        className="absolute inset-0"
-        style={{ filter: filterStyle === "none" ? undefined : filterStyle }}
-      >
+      {/* ── Background Layer — always render Street View / Mapbox underneath ── */}
+      <div className="absolute inset-0">
         {svAvailable ? (
           <div ref={streetViewRef} className="w-full h-full" />
         ) : (
@@ -404,20 +589,237 @@ export function ImmersiveView({
         )}
       </div>
 
-      {/* Top-left HUD */}
-      <div className="absolute top-6 left-6 z-10 flex items-center gap-3">
-        <div className="bg-zinc-950/80 backdrop-blur-md rounded-xl px-4 py-2 flex items-center gap-2">
-          <span className="text-white font-bold text-sm">{stop.name}</span>
-          {isNarrating && (
-            <span className="flex items-center gap-1 text-red-500 text-xs font-bold">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              Live
-            </span>
-          )}
+      {/* ── AI Panorama Overlay — renders ON TOP of Street View when ready ── */}
+      <AnimatePresence>
+        {isInImagination && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[5]"
+          >
+            {panoUrl ? (
+              /* 360° panorama sphere — drag to look around like Street View */
+              <PanoViewer imageUrl={panoUrl} />
+            ) : thumbnailUrl ? (
+              /* Thumbnail fallback */
+              <div className="w-full h-full relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={thumbnailUrl}
+                  alt="AI Generated World"
+                  className="w-full h-full object-cover"
+                  draggable={false}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/30" />
+              </div>
+            ) : (
+              /* No visual — caption card */
+              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-purple-950/60 via-black to-black p-8">
+                <Sparkles size={48} className="text-purple-400 mb-4" />
+                <h2 className="text-xl font-bold text-white mb-3">Your Imagined World</h2>
+                <p className="text-zinc-300 text-sm max-w-lg text-center leading-relaxed">
+                  {worldCaption || `"${imaginePrompt}"`}
+                </p>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Generating Overlay ── */}
+      <AnimatePresence>
+        {imagineState === "generating" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-20 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center"
+          >
+            <div className="flex flex-col items-center gap-6 max-w-md px-6 text-center">
+              <div className="relative">
+                <Loader2 size={48} className="text-purple-400 animate-spin" />
+                <Sparkles size={20} className="text-purple-300 absolute -top-1 -right-1 animate-pulse" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-white">Creating Your World</h3>
+                <p className="text-zinc-400 text-sm">{genProgress}</p>
+                <p className="text-zinc-600 text-xs">
+                  {genElapsed}s elapsed — typically takes 3–5 minutes
+                </p>
+              </div>
+              <div className="w-64 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
+                  initial={{ width: "0%" }}
+                  animate={{ width: "90%" }}
+                  transition={{ duration: 50, ease: "easeOut" }}
+                />
+              </div>
+              <p className="text-zinc-500 text-xs italic max-w-sm">
+                &ldquo;{imaginePrompt}&rdquo;
+              </p>
+              <button
+                onClick={handleBackToStreetView}
+                className="text-zinc-500 text-xs hover:text-white transition-colors underline"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Error Overlay ── */}
+      <AnimatePresence>
+        {imagineState === "error" && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-20 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center"
+          >
+            <div className="flex flex-col items-center gap-4 max-w-md px-6 text-center">
+              <h3 className="text-xl font-bold text-red-400">Generation Failed</h3>
+              <p className="text-zinc-400 text-sm">{genError}</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleBackToStreetView}
+                  className="px-4 py-2 rounded-full bg-zinc-800 text-zinc-300 text-sm hover:bg-zinc-700 transition-colors"
+                >
+                  Back to Street View
+                </button>
+                <button
+                  onClick={() => setImagineState("input")}
+                  className="px-4 py-2 rounded-full bg-purple-600 text-white text-sm hover:bg-purple-500 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Left Sidebar (always visible) ── */}
+      <div className="absolute inset-y-6 left-6 z-10 w-[320px] pointer-events-none">
+        <div className="h-full bg-zinc-950/85 backdrop-blur-xl rounded-3xl border border-zinc-800 flex flex-col p-5 space-y-4 pointer-events-auto">
+          {/* Header */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] font-semibold"
+                  style={{ color: isInImagination ? "#c084fc" : "#34d399" }}
+                >
+                  {isInImagination
+                    ? "✨ Imagined World"
+                    : currentStop.type === "hotel"
+                    ? "Overnight Stay"
+                    : currentStop.type === "airport"
+                    ? "Flight Hub"
+                    : "Trip Stop"}
+                </p>
+                <h2 className="text-lg font-semibold text-white leading-snug line-clamp-2">
+                  {currentStop.name}
+                </h2>
+              </div>
+              {isNarrating && (
+                <span className="flex flex-col items-end gap-1 text-red-500 text-[10px] font-semibold">
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    Live
+                  </span>
+                  <span className="text-zinc-400 text-[9px]">Narration</span>
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-zinc-500">
+              Stop {currentIndex + 1} of {stops.length}
+            </p>
+          </div>
+
+          {/* Description */}
+          <div className="flex-1 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 p-3 overflow-hidden">
+            <div className="h-full overflow-y-auto pr-1 space-y-2">
+              {isInImagination && worldCaption ? (
+                <>
+                  <p className="text-[10px] uppercase tracking-wider text-purple-400 font-bold mb-1">
+                    AI-Generated Scene
+                  </p>
+                  <p className="text-[12px] text-zinc-200 leading-relaxed italic">
+                    &ldquo;{imaginePrompt}&rdquo;
+                  </p>
+                  <p className="text-[11px] text-zinc-400 leading-relaxed mt-2">
+                    {worldCaption}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[12px] text-zinc-200 leading-relaxed">
+                    {currentStop.description || currentStop.notes || "A memorable stop on your BeaverTrails adventure."}
+                  </p>
+                  <p className="text-[11px] text-zinc-500">
+                    Ask Beav about history, hidden gems, or what to look for in this view.
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Navigation + Chat */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              {isInImagination ? (
+                <button
+                  onClick={handleBackToStreetView}
+                  className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-full border border-purple-700 bg-purple-950/50 text-[11px] text-purple-300 hover:border-purple-400 hover:text-purple-200 transition-colors w-full"
+                >
+                  <ArrowLeft size={14} />
+                  Back to Street View
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={handlePrevStop}
+                    disabled={!hasPrev}
+                    className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-full border border-zinc-700 bg-zinc-900/70 text-[11px] text-zinc-200 hover:border-emerald-500 hover:text-emerald-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft size={14} />
+                    Prev stop
+                  </button>
+                  <button
+                    onClick={handleNextStop}
+                    disabled={!hasNext}
+                    className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-full border border-zinc-700 bg-zinc-900/70 text-[11px] text-zinc-200 hover:border-emerald-500 hover:text-emerald-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    Next stop
+                    <ChevronRight size={14} />
+                  </button>
+                </>
+              )}
+            </div>
+
+            <form onSubmit={handleTextAsk} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={textQuestion}
+                onChange={(e) => setTextQuestion(e.target.value)}
+                placeholder="Ask Beav about this view..."
+                className="flex-1 rounded-full bg-zinc-900/80 border border-zinc-700 px-3 py-1.5 text-[12px] text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/70 focus:border-emerald-500"
+              />
+              <button
+                type="submit"
+                disabled={!textQuestion.trim() || isChatLoading}
+                className="px-3 py-1.5 rounded-full bg-emerald-500 text-[11px] font-semibold text-black hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isChatLoading ? "..." : "Ask"}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
 
-      {/* Top-right: Exit + Mute */}
+      {/* ── Top-right: Exit + Mute ── */}
       <div className="absolute top-6 right-6 z-10 flex items-center gap-2">
         <button
           onClick={() => setMuteAmbient((m) => !m)}
@@ -433,43 +835,76 @@ export function ImmersiveView({
         </button>
       </div>
 
-      {/* Bottom center: Time + Season toggles */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2">
-        {/* Time of day */}
-        <div className="flex gap-1 bg-zinc-950/80 backdrop-blur-md rounded-full px-3 py-2 border border-zinc-700">
-          {["Dawn", "Day", "Dusk", "Night"].map((t) => (
-            <button
-              key={t}
-              onClick={() => handleTimeChange(t)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                timeOfDay === t
-                  ? "bg-red-600 text-white"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-        {/* Season */}
-        <div className="flex gap-1 bg-zinc-950/80 backdrop-blur-md rounded-full px-3 py-2 border border-zinc-700">
-          {["Spring", "Summer", "Fall", "Winter"].map((s) => (
-            <button
-              key={s}
-              onClick={() => handleSeasonChange(s)}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                season === s
-                  ? "bg-red-600 text-white"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* ── Bottom Center: Imagine This button / input ── */}
+      {imagineState !== "generating" && imagineState !== "error" && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
+          <AnimatePresence mode="wait">
+            {imagineState === "idle" && !isInImagination && (
+              <motion.button
+                key="imagine-btn"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                onClick={() => setImagineState("input")}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-semibold shadow-lg shadow-purple-900/40 hover:shadow-purple-700/50 hover:scale-105 transition-all border border-purple-500/30"
+              >
+                <Sparkles size={16} />
+                Imagine This
+              </motion.button>
+            )}
 
-      {/* Bottom-right: Mic button */}
+            {imagineState === "input" && (
+              <motion.form
+                key="imagine-input"
+                initial={{ opacity: 0, y: 10, width: 200 }}
+                animate={{ opacity: 1, y: 0, width: 480 }}
+                exit={{ opacity: 0, y: 10 }}
+                onSubmit={handleImagineSubmit}
+                className="flex items-center gap-2 bg-zinc-950/90 backdrop-blur-xl rounded-full border border-purple-500/40 px-3 py-2 shadow-lg shadow-purple-900/30"
+              >
+                <Sparkles size={16} className="text-purple-400 flex-shrink-0 ml-1" />
+                <input
+                  type="text"
+                  value={imaginePrompt}
+                  onChange={(e) => setImaginePrompt(e.target.value)}
+                  placeholder="e.g. &quot;this place at night in a snowstorm&quot;"
+                  autoFocus
+                  className="flex-1 bg-transparent text-white text-sm placeholder:text-zinc-500 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={!imaginePrompt.trim()}
+                  className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white hover:bg-purple-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                >
+                  <Send size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setImagineState("idle"); setImaginePrompt(""); }}
+                  className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition-colors flex-shrink-0"
+                >
+                  <X size={14} />
+                </button>
+              </motion.form>
+            )}
+
+            {isInImagination && (
+              <motion.div
+                key="imagine-badge"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-950/80 backdrop-blur-md border border-purple-500/30 text-purple-300 text-xs font-medium"
+              >
+                <Sparkles size={14} className="text-purple-400" />
+                {panoUrl ? "AI-Generated World — Drag to look around" : "AI-Generated World"}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* ── Bottom-right: Mic button ── */}
       <div className="absolute bottom-8 right-6 z-10">
         <button
           onClick={handleMic}
@@ -483,7 +918,7 @@ export function ImmersiveView({
         </button>
       </div>
 
-      {/* Q&A overlay */}
+      {/* ── Q&A Overlay ── */}
       <AnimatePresence>
         {qaOverlay && (
           <motion.div

@@ -10,10 +10,11 @@ import { TripDurationStep } from "./components/TripDurationStep";
 import { BudgetStep } from "./components/BudgetStep";
 import { LuggageStep } from "./components/LuggageStep";
 import { StartingCityStep } from "./components/StartingCityStep";
+import { TikTokStep } from "./components/TikTokStep";
 import { useRouter } from "next/navigation";
 import { ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
 
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 8;
 
 export default function SurveyPage() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -37,6 +38,7 @@ export default function SurveyPage() {
           budgetPerPerson: surveyState.budgetPerPerson,
           luggageAmount: surveyState.luggageAmount,
           startingCity: surveyState.startingCity,
+          tiktokClips: surveyState.tiktokClips,
         };
 
         const controller = new AbortController();
@@ -50,12 +52,54 @@ export default function SurveyPage() {
         });
 
         clearTimeout(timeout);
-        
+
         if (response.ok) {
            const data = await response.json();
            surveyState.setField("travellerArchetype", data.traveller_archetype);
            surveyState.setField("recommendedProvinces", data.recommended_provinces);
-           router.push("/preferences");
+
+           // If the user attached TikTok clips, skip preferences and generate directly
+           if (surveyState.tiktokClips.length > 0) {
+             const s = useSurveyStore.getState();
+             const itineraryPayload = {
+               ageRange: s.ageRange,
+               accessibilityNeeds: s.accessibilityNeeds,
+               groupComposition: s.groupComposition,
+               tripDuration: s.tripDuration,
+               budgetPerPerson: s.budgetPerPerson,
+               luggageAmount: s.luggageAmount,
+               startingCity: s.startingCity,
+               travellerArchetype: data.traveller_archetype,
+               recommendedProvinces: data.recommended_provinces,
+               activities: s.activities,
+               dreamTrip: s.dreamTrip,
+               tiktokClips: s.tiktokClips,
+             };
+
+             const itinController = new AbortController();
+             const itinTimeout = setTimeout(() => itinController.abort(), 120000); // 2 min timeout
+
+             const itinResponse = await fetch("/api/generate-itinerary", {
+               method: "POST",
+               headers: { "Content-Type": "application/json" },
+               body: JSON.stringify(itineraryPayload),
+               signal: itinController.signal,
+             });
+
+             clearTimeout(itinTimeout);
+
+             if (itinResponse.ok) {
+               const itinerary = await itinResponse.json();
+               surveyState.setField("itinerary", itinerary);
+               router.push("/trip");
+             } else {
+               console.error("Failed to generate itinerary:", itinResponse.status);
+               // Fall back to preferences page on failure
+               router.push("/preferences");
+             }
+           } else {
+             router.push("/preferences");
+           }
         } else {
            const errorData = await response.text();
            console.error("Survey submission failed:", response.status, errorData);
@@ -81,6 +125,7 @@ export default function SurveyPage() {
       case 5: return !surveyState.budgetPerPerson;
       case 6: return !surveyState.luggageAmount;
       case 7: return !surveyState.startingCity;
+      case 8: return false;
       default: return false;
     }
   };
@@ -126,6 +171,7 @@ export default function SurveyPage() {
                 {currentStep === 5 && <BudgetStep />}
                 {currentStep === 6 && <LuggageStep />}
                 {currentStep === 7 && <StartingCityStep />}
+                {currentStep === 8 && <TikTokStep />}
              </motion.div>
           </AnimatePresence>
         </div>
@@ -157,7 +203,7 @@ export default function SurveyPage() {
              {isSubmitting ? (
                 <>
                   <Loader2 size={20} className="animate-spin" />
-                  Analyzing...
+                  {surveyState.tiktokClips.length > 0 ? "Building your trip..." : "Analyzing..."}
                 </>
              ) : (
                 <>

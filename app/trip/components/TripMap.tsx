@@ -137,6 +137,7 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
       const el = document.createElement("div");
       el.className = "custom-marker cursor-pointer";
       el.style.lineHeight = "1";
+      el.style.display = "inline-block";
       // Inner span handles hover scaling so Mapbox's transform on the outer div is never transitioned
       const inner = document.createElement("span");
       inner.className = `${size} inline-block transition-transform duration-200 hover:scale-125`;
@@ -280,7 +281,6 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
             badge.textContent = "📷";
             badge.style.cssText =
               "position:absolute;top:-6px;right:-6px;font-size:10px;line-height:1;pointer-events:none;";
-            el.style.position = "relative";
             el.appendChild(badge);
           }
         }

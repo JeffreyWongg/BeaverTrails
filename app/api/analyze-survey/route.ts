@@ -3,10 +3,8 @@ import { NextResponse } from "next/server";
 export const maxDuration = 60;
 
 const MODELS = [
-  "nvidia/nemotron-3-nano-30b-a3b:free",
-  "stepfun/step-3.5-flash:free",
-  "nvidia/nemotron-nano-9b-v2:free",
-  "arcee-ai/trinity-large-preview:free",
+  "google/gemini-3.1-pro-preview",
+  "google/gemini-2.5-pro",
 ];
 
 const PER_MODEL_TIMEOUT = 15000;
@@ -57,9 +55,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "OpenRouter API key not configured" }, { status: 500 });
     }
 
+    const tiktokSummary =
+      Array.isArray(surveyData.tiktokClips) && surveyData.tiktokClips.length
+        ? `\n\nThey also shared these TikTok travel clips as inspiration (prioritize provinces that match these locations when it makes sense):\n${surveyData.tiktokClips
+            .map((c: { url?: string; caption?: string; summary?: string }, i: number) => `${i + 1}. ${c.summary || c.caption || "Unknown spot"} — ${c.url || "no URL"}`)
+            .join("\n")}\n`
+        : "";
+
     const prompt = `Based on this traveler's profile, give them a fun archetype name (like "The Budget Urban Adventurer" or "The Luxury Nature Seeker") and recommend 1-3 Canadian provinces that suit them best.
 
 They're ${surveyData.ageRange} years old, traveling as ${surveyData.groupComposition}, for ${surveyData.tripDuration} days on a ${surveyData.budgetPerPerson} budget, starting from ${surveyData.startingCity?.name || "somewhere in Canada"}.${surveyData.accessibilityNeeds?.length ? ` Accessibility needs: ${surveyData.accessibilityNeeds.join(", ")}.` : ""}
+
+${tiktokSummary}
 
 Return JSON: {"traveller_archetype": "...", "recommended_provinces": ["..."]}`;
 

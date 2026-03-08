@@ -3,10 +3,8 @@ import { NextResponse } from "next/server";
 export const maxDuration = 60;
 
 const MODELS = [
-  "nvidia/nemotron-3-nano-30b-a3b:free",
-  "stepfun/step-3.5-flash:free",
-  "nvidia/nemotron-nano-9b-v2:free",
-  "arcee-ai/trinity-large-preview:free",
+  "google/gemini-3.1-pro-preview",
+  "google/gemini-2.5-pro",
 ];
 
 const PER_MODEL_TIMEOUT = 25000;
