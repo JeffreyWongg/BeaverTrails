@@ -110,6 +110,7 @@ export default function TripPage() {
           selectedStop={selectedStop}
           allStops={allStops}
           onNavigate={setSelectedStop}
+          isLeftPanelOpen={!!selectedStop}
         />
         <ImmersiveDrawer
           stop={selectedStop}

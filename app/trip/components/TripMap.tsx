@@ -13,9 +13,10 @@ interface TripMapProps {
   selectedStop: Stop | null;
   allStops: Stop[];
   onNavigate: (stop: Stop) => void;
+  isLeftPanelOpen?: boolean;
 }
 
-export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: TripMapProps) {
+export function TripMap({ onStopClick, selectedStop, allStops, onNavigate, isLeftPanelOpen = false }: TripMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
@@ -323,7 +324,13 @@ export function TripMap({ onStopClick, selectedStop, allStops, onNavigate }: Tri
     <>
       <div ref={mapContainer} className="w-full h-full" />
       {selectedStop && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 pointer-events-auto">
+        <div 
+          className={`absolute bottom-6 z-30 flex items-center gap-2 pointer-events-auto ${
+            isLeftPanelOpen 
+              ? 'left-[calc((320px+100%)/2)] -translate-x-1/2' 
+              : 'left-1/2 -translate-x-1/2'
+          }`}
+        >
           <button
             onClick={handlePrev}
             disabled={!hasPrev}
