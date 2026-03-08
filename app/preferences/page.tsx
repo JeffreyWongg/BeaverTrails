@@ -63,6 +63,7 @@ export default function PreferencesPage() {
            recommendedProvinces: s.recommendedProvinces,
            activities: s.activities,
            dreamTrip: s.dreamTrip,
+           tiktokClips: s.tiktokClips,
          };
 
          const controller = new AbortController();

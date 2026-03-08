@@ -25,6 +25,12 @@ export interface Day {
   travel_method_from_prev: 'flight' | 'drive' | 'train' | 'boat' | 'none';
 }
 
+export interface TikTokClip {
+  url: string;
+  caption?: string;
+  summary?: string; // AI-generated location summary
+}
+
 export interface Trip {
   id: string;
   title: string;

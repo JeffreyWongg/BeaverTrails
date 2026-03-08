@@ -125,12 +125,19 @@ export function TripSidebar({ onStopClick }: TripSidebarProps) {
                               <button 
                                  key={sIdx}
                                  onClick={() => onStopClick(stop)}
-                                 className="flex items-center gap-3 w-full text-left group relative"
+                                 className="flex items-start gap-3 w-full text-left group relative"
                               >
-                                 <div className="absolute -left-3.5 w-2 h-2 rounded-full bg-zinc-700 group-hover:bg-emerald-400 transition-colors" />
-                                 <span className="text-sm text-zinc-300 group-hover:text-emerald-300 transition-colors py-1">
-                                    {stop.name}
-                                 </span>
+                                 <div className="absolute -left-3.5 w-2 h-2 rounded-full bg-zinc-700 group-hover:bg-emerald-400 transition-colors mt-2" />
+                                 <div className="flex flex-col">
+                                   <span className="text-sm text-zinc-300 group-hover:text-emerald-300 transition-colors">
+                                      {stop.name}
+                                   </span>
+                                   {stop.description && (
+                                     <span className="text-xs text-zinc-500 group-hover:text-zinc-300 transition-colors whitespace-pre-line">
+                                       {stop.description}
+                                     </span>
+                                   )}
+                                 </div>
                               </button>
                            ))}
                          </div>
