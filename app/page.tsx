@@ -4,6 +4,7 @@ import Link from "next/link";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 import HeroGlobe from "@/components/HeroGlobe";
+import AuthNav from "@/components/AuthNav";
 
 export default function Home() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -51,6 +52,7 @@ export default function Home() {
             >
               About
             </Link>
+            <AuthNav />
           </div>
         </div>
       </motion.nav>
