@@ -4,7 +4,7 @@ import { useSurveyStore } from "../../../lib/store";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { Stop } from "../../../types";
-import { ChevronDown, ChevronUp, Car, Plane, Train, Ship, ArrowRightCircle, BedDouble, Download, Loader2, ShoppingCart } from "lucide-react";
+import { ChevronDown, ChevronUp, Car, Plane, Train, Ship, ArrowRightCircle, BedDouble, Download, Loader2, ShoppingCart, UtensilsCrossed, MapPin, TreePine, Bus } from "lucide-react";
 import { downloadItineraryPDF } from "./ItineraryPDF";
 import { useRouter } from "next/navigation";
 
@@ -37,6 +37,18 @@ export function TripSidebar({ onStopClick }: TripSidebarProps) {
       case 'none': return <ArrowRightCircle size={16} className="text-zinc-500" />;
       case 'drive':
       default: return <Car size={16} className="text-emerald-400" />;
+    }
+  };
+
+  const getStopIcon = (type: string) => {
+    switch (type) {
+      case 'airport': return <Plane size={14} className="text-blue-400 flex-shrink-0 mt-0.5" />;
+      case 'transit': return <Bus size={14} className="text-orange-400 flex-shrink-0 mt-0.5" />;
+      case 'restaurant': return <UtensilsCrossed size={14} className="text-amber-400 flex-shrink-0 mt-0.5" />;
+      case 'hotel': return <BedDouble size={14} className="text-amber-400 flex-shrink-0 mt-0.5" />;
+      case 'attraction': return <MapPin size={14} className="text-emerald-400 flex-shrink-0 mt-0.5" />;
+      case 'park': return <TreePine size={14} className="text-green-400 flex-shrink-0 mt-0.5" />;
+      default: return <MapPin size={14} className="text-zinc-400 flex-shrink-0 mt-0.5" />;
     }
   };
 
@@ -110,54 +122,29 @@ export function TripSidebar({ onStopClick }: TripSidebarProps) {
                             </div>
                          )}
 
-                         {day.airport && day.airport.coordinates && (
-                            <button 
-                               onClick={() => onStopClick({ name: day.airport!.name, type: "airport", coordinates: day.airport!.coordinates, description: `Arrival airport for your flight into ${day.city}.` })}
-                               className="flex items-center gap-2 text-xs font-medium text-blue-300 bg-blue-950/40 p-2 rounded-lg mb-4 border border-blue-900/30 w-full text-left hover:bg-blue-950/60 hover:border-blue-700/50 transition-colors group"
-                            >
-                               <Plane size={14} className="text-blue-400 flex-shrink-0 group-hover:text-blue-300" />
-                               <span>✈️ {day.airport.name}</span>
-                            </button>
-                         )}
-                         
-                         <div className="space-y-3 pl-2 border-l border-zinc-700 ml-4 py-2">
-                           {day.stops?.map((stop, sIdx) => (
-                              <button 
+                         <div className="space-y-2">
+                           {(day.stops || []).map((stop, sIdx) => (
+                              <button
                                  key={sIdx}
                                  onClick={() => onStopClick(stop)}
-                                 className="flex items-start gap-3 w-full text-left group relative"
+                                 className="w-full text-left p-3 rounded-xl bg-zinc-950/80 border border-zinc-800/50 hover:bg-zinc-900 hover:border-zinc-700 transition-colors group"
                               >
-                                 <div className="absolute -left-3.5 w-2 h-2 rounded-full bg-zinc-700 group-hover:bg-emerald-400 transition-colors mt-2" />
-                                 <div className="flex flex-col">
-                                   <span className="text-sm text-zinc-300 group-hover:text-emerald-300 transition-colors">
-                                      {stop.name}
-                                   </span>
-                                   {stop.description && (
-                                     <span className="text-xs text-zinc-500 group-hover:text-zinc-300 transition-colors whitespace-pre-line">
-                                       {stop.description}
+                                 <div className="flex items-start gap-3">
+                                   {getStopIcon(stop.type)}
+                                   <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                                     <span className="text-sm font-medium text-zinc-200 group-hover:text-emerald-300 transition-colors truncate">
+                                        {stop.name}
                                      </span>
-                                   )}
+                                     {stop.description && (
+                                       <span className="text-xs text-zinc-500 group-hover:text-zinc-400 transition-colors line-clamp-3">
+                                         {stop.description}
+                                       </span>
+                                     )}
+                                   </div>
                                  </div>
                               </button>
                            ))}
                          </div>
-
-                         {day.overnight_hotel && (
-                            <button 
-                               onClick={() => {
-                                  if (day.overnight_hotel_coordinates?.length === 2) {
-                                     onStopClick({ name: day.overnight_hotel, type: "hotel", coordinates: day.overnight_hotel_coordinates as [number, number], description: `Your overnight stay in ${day.city}.` });
-                                  }
-                               }}
-                               className="mt-4 p-3 bg-zinc-950 rounded-xl flex items-start gap-3 border border-zinc-800/50 w-full text-left hover:bg-zinc-900 hover:border-zinc-700 transition-colors group"
-                            >
-                               <BedDouble size={16} className="text-amber-400 mt-0.5 flex-shrink-0 group-hover:text-amber-300" />
-                               <div>
-                                  <p className="text-xs text-zinc-500 uppercase tracking-wider font-bold mb-1">Stay At</p>
-                                  <p className="text-sm font-medium text-amber-100 group-hover:text-amber-50">{day.overnight_hotel}</p>
-                               </div>
-                            </button>
-                         )}
                       </motion.div>
                    )}
                 </AnimatePresence>

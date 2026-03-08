@@ -52,6 +52,7 @@ async function geocodeItinerary(itinerary: any[]): Promise<any[]> {
     proximity: string;
     cityCoords: [number, number] | null;
     maxKm: number;
+    originalCoords: [number, number] | null;
   }> = [];
 
   for (const day of itinerary) {
@@ -65,7 +66,10 @@ async function geocodeItinerary(itinerary: any[]): Promise<any[]> {
           proximity: cityProx,
           cityCoords,
           maxKm: 100,
-          callback: (coords) => { stop.coordinates = coords; },
+          originalCoords: Array.isArray(stop.coordinates) ? stop.coordinates : null,
+          callback: (coords) => {
+            stop.coordinates = coords;
+          },
         });
       }
     }
@@ -76,7 +80,12 @@ async function geocodeItinerary(itinerary: any[]): Promise<any[]> {
         proximity: cityProx,
         cityCoords,
         maxKm: 100,
-        callback: (coords) => { day.overnight_hotel_coordinates = coords; },
+        originalCoords: Array.isArray(day.overnight_hotel_coordinates)
+          ? day.overnight_hotel_coordinates
+          : null,
+        callback: (coords) => {
+          day.overnight_hotel_coordinates = coords;
+        },
       });
     }
 
@@ -86,7 +95,10 @@ async function geocodeItinerary(itinerary: any[]): Promise<any[]> {
         proximity: cityProx,
         cityCoords,
         maxKm: 200,
-        callback: (coords) => { day.airport.coordinates = coords; },
+        originalCoords: Array.isArray(day.airport.coordinates) ? day.airport.coordinates : null,
+        callback: (coords) => {
+          day.airport.coordinates = coords;
+        },
       });
     }
   }
@@ -96,15 +108,27 @@ async function geocodeItinerary(itinerary: any[]): Promise<any[]> {
     tasks.map((t) => geocode(t.query, t.proximity || undefined))
   );
   for (let j = 0; j < tasks.length; j++) {
+    const task = tasks[j];
     const coords = results[j];
+
     if (coords) {
-      if (tasks[j].cityCoords && !isNearby(coords, tasks[j].cityCoords!, tasks[j].maxKm)) {
-        tasks[j].callback(tasks[j].cityCoords!);
+      // If geocoded point is unreasonably far from the city, prefer original coords if we had them,
+      // otherwise fall back to city centre.
+      if (task.cityCoords && !isNearby(coords, task.cityCoords, task.maxKm)) {
+        if (task.originalCoords) {
+          task.callback(task.originalCoords);
+        } else {
+          task.callback(task.cityCoords);
+        }
       } else {
-        tasks[j].callback(coords);
+        task.callback(coords);
       }
-    } else if (tasks[j].cityCoords) {
-      tasks[j].callback(tasks[j].cityCoords!);
+    } else if (task.originalCoords) {
+      // Geocoding failed — keep whatever coordinates we already had instead of flattening to city centre.
+      task.callback(task.originalCoords);
+    } else if (task.cityCoords) {
+      // Only if we had no original coords at all, fall back to city centre.
+      task.callback(task.cityCoords);
     }
   }
 
@@ -174,13 +198,21 @@ export async function POST(req: Request) {
       surveyData.activities?.join(", ") || "sightseeing"
     }.${surveyData.dreamTrip ? ` "${surveyData.dreamTrip}"` : ""} Budget: ${surveyData.budgetPerPerson}.
 
-Focus on hidden gems and local favorites over tourist traps. Drive when possible, fly only if 1000+km. Each stop needs a short "description". On flight days, include airport as a stop.
+CRITICAL: Every single place the traveler will go must be its own stop in the "stops" array, in chronological order. Each stop is a node with a mini description below. You MUST include:
 
-Plan each day as a fully scheduled timeline: in each stop's "description", include clear time-of-day hints (e.g. "08:00 - Land at YYZ and clear customs", "12:30 - Lunch at a nearby café", "18:00 - Sunset at the viewpoint, then walk back to the hotel"). Cover morning, afternoon, and evening with at least 3–5 distinct moments including: intercity travel (flight/train/drive times), hotel check-in/out, at least 2 meal suggestions, and 1–3 key landmarks or experiences.
+- Airport: On flight days, include the arrival/departure airport as a stop (type: "airport") with a 1–2 sentence description (e.g. land, clear customs, pick up bags).
+- Transit: When using bus/train, include each station as a stop (type: "transit") with a short description (e.g. "Union Station — GO Transit hub; catch UP Express to Pearson").
+- Restaurants & cafés: Every meal spot as its own stop (type: "restaurant") with name and a short description (what to order, vibe, opening note).
+- Landmarks & parks: Each attraction or park as a stop (type: "attraction" or "park") with a mini description.
+- Hotel: The overnight stay as a stop (type: "hotel") with a short description (check-in, vibe, one tip).
+
+Use only these stop types: "airport", "transit", "restaurant", "hotel", "attraction", "park", "other". Every stop MUST have: "name", "type", "description" (1–2 sentences), and "coordinates" (use city centre if you don't know exact; we geocode). In each description you may include time-of-day hints (e.g. "08:00 – Land at YYZ", "12:30 – Lunch here") so the day reads as a full schedule.
+
+Focus on hidden gems and local favorites. Drive when possible, fly only if 1000+ km. On flight days the first stop must be the airport; the last stop of each day should usually be the hotel.
 
 ${tiktokSummary}
 
-Day schema: {"date_offset":1,"city":"Toronto","city_coordinates":[-79.38,43.65],"province":"Ontario","stops":[{"name":"Graffiti Alley","type":"other","coordinates":[-79.4,43.65],"description":"08:30 - Coffee on Queen Street West.\n10:00 - Stroll through Graffiti Alley for photos of the murals.\n12:30 - Lunch nearby on a patio."}],"overnight_hotel":"The Drake","overnight_hotel_coordinates":[-79.42,43.64],"travel_time_from_prev_hours":0,"travel_method_from_prev":"none"}
+Day schema (every place = one stop): {"date_offset":1,"city":"Toronto","city_coordinates":[-79.38,43.65],"province":"Ontario","stops":[{"name":"Toronto Pearson International","type":"airport","coordinates":[-79.63,43.68],"description":"Land at YYZ, clear customs, pick up bags. Allow ~1h to downtown."},{"name":"Union Station","type":"transit","coordinates":[-79.38,43.64],"description":"GO Transit and VIA Rail hub. UP Express to Pearson or trains to Niagara."},{"name":"St. Lawrence Market","type":"restaurant","coordinates":[-79.37,43.65],"description":"Peameal bacon sandwich for lunch. Historic market, Tue–Sat."},{"name":"Graffiti Alley","type":"attraction","coordinates":[-79.4,43.65],"description":"10:00 – Street art and murals in the Fashion District; great for photos."},{"name":"The Drake Hotel","type":"hotel","coordinates":[-79.42,43.64],"description":"Check in here. Queen West vibe, rooftop bar."}],"overnight_hotel":"The Drake Hotel","overnight_hotel_coordinates":[-79.42,43.64],"travel_time_from_prev_hours":0,"travel_method_from_prev":"none"}
 
 JSON array only.`;
 
@@ -220,6 +252,21 @@ JSON array only.`;
     // Fix coordinates with real geocoding
     console.log(`[generate-itinerary] Geocoding all locations...`);
     itinerary = await geocodeItinerary(itinerary);
+
+    // Derive day.airport and day.overnight_hotel from stops so map/PDF still work
+    for (const day of itinerary) {
+      const stops = day.stops || [];
+      const airportStop = stops.find((s: { type?: string }) => s.type === "airport");
+      const hotelStop = stops.find((s: { type?: string }) => s.type === "hotel");
+      if (airportStop && airportStop.coordinates?.length === 2) {
+        day.airport = { name: airportStop.name, coordinates: airportStop.coordinates };
+      }
+      if (hotelStop && hotelStop.coordinates?.length === 2) {
+        day.overnight_hotel = hotelStop.name;
+        day.overnight_hotel_coordinates = hotelStop.coordinates;
+      }
+    }
+
     console.log(`[generate-itinerary] ✓ Done`);
 
     return NextResponse.json(itinerary);

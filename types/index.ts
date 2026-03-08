@@ -1,7 +1,7 @@
 export interface Stop {
   id?: string;
   name: string;
-  type: 'park' | 'restaurant' | 'hotel' | 'attraction' | 'airport' | 'other';
+  type: 'park' | 'restaurant' | 'hotel' | 'attraction' | 'airport' | 'transit' | 'other';
   coordinates: [number, number]; // [longitude, latitude]
   description?: string; // Short 1-2 sentence description
   address?: string;

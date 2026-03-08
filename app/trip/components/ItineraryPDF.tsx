@@ -44,6 +44,7 @@ export async function downloadItineraryPDF(itinerary: Day[], archetype: string |
       case "attraction": return "📸";
       case "hotel": return "🏨";
       case "airport": return "✈";
+      case "transit": return "🚌";
       default: return "📍";
     }
   };
