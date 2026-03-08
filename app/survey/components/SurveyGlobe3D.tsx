@@ -56,7 +56,6 @@ export default function SurveyGlobe3D({ width, height, onReady }: SurveyGlobe3DP
       showAtmosphere={false}
       enablePointerInteraction={false}
       animateIn={false}
-      devicePixelRatio={1.5}
       onGlobeReady={handleGlobeReady}
     />
   );

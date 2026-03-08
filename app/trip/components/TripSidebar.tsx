@@ -93,7 +93,7 @@ export function TripSidebar({ onStopClick }: TripSidebarProps) {
 
       {/* Day List */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 pb-24">
-        {itinerary.map((day, dayIdx) => (
+      {itinerary.map((day) => (
           <div
             key={day.date_offset}
             className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
