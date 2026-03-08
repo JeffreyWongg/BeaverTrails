@@ -5,22 +5,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Mic, MicOff, Volume2, VolumeX,
   ChevronLeft, ChevronRight, Sparkles, ArrowLeft, Loader2, Send,
-  ExternalLink,
 } from "lucide-react";
 import { useSurveyStore } from "../../../lib/store";
 import { Stop } from "../../../types";
-
-const AMBIENT_SOUNDS: Record<string, string> = {
-  park: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-  mountain: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-  beach: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-  restaurant: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-  market: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-  historic: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-  museum: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-  attraction: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
-  default: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
-};
+import { PanoViewer } from "./PanoViewer";
+import { AmbientEngine } from "./AmbientEngine";
 
 type ImagineState = "idle" | "input" | "generating" | "ready" | "error";
 
@@ -43,7 +32,7 @@ export function ImmersiveView({
 }: ImmersiveViewProps) {
   const streetViewRef = useRef<HTMLDivElement>(null);
   const mapboxRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const ambientRef = useRef<AmbientEngine | null>(null);
   const narrationAudioRef = useRef<HTMLAudioElement | null>(null);
   const mapboxMapRef = useRef<unknown>(null);
   const bearingAnimRef = useRef<number | null>(null);
@@ -64,19 +53,15 @@ export function ImmersiveView({
   // --- Imagination Mode State ---
   const [imagineState, setImagineState] = useState<ImagineState>("idle");
   const [imaginePrompt, setImaginePrompt] = useState("");
-  const [worldUrl, setWorldUrl] = useState<string | null>(null);
   const [panoUrl, setPanoUrl] = useState<string | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [worldCaption, setWorldCaption] = useState<string | null>(null);
   const [genProgress, setGenProgress] = useState("Starting generation...");
   const [genError, setGenError] = useState("");
   const [genElapsed, setGenElapsed] = useState(0);
   const genTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Panorama drag state
-  const [panoDragX, setPanoDragX] = useState(0);
-  const panoDragging = useRef(false);
-  const panoDragStart = useRef(0);
-  const panoDragOffset = useRef(0);
+  // (PanoViewer handles its own drag interaction)
 
   const { streetViewCoverage } = useSurveyStore();
 
@@ -85,10 +70,9 @@ export function ImmersiveView({
     setCurrentStop(initialStop);
     // Reset imagination when stop changes
     setImagineState("idle");
-    setWorldUrl(null);
     setPanoUrl(null);
+    setThumbnailUrl(null);
     setImaginePrompt("");
-    setPanoDragX(0);
   }, [initialIndex, initialStop]);
 
   const stopKey =
@@ -96,50 +80,26 @@ export function ImmersiveView({
     `${currentStop.name}_${currentStop.coordinates[0].toFixed(4)}_${currentStop.coordinates[1].toFixed(4)}`;
   const svAvailable = streetViewCoverage[stopKey] === true;
 
-  // ── Ambient Audio ──
+  // ── Ambient Audio (procedural via Web Audio API) ──
   useEffect(() => {
-    const soundKey =
-      Object.keys(AMBIENT_SOUNDS).find((k) =>
-        currentStop.type.toLowerCase().includes(k)
-      ) || "default";
-    const url = AMBIENT_SOUNDS[soundKey];
-    const audio = new Audio(url);
-    audio.loop = true;
-    audio.volume = 0;
-    audioRef.current = audio;
-    audio.play().catch(() => {});
-
-    let vol = 0;
-    const fadeIn = setInterval(() => {
-      vol = Math.min(vol + 0.035, 0.35);
-      audio.volume = vol;
-      if (vol >= 0.35) clearInterval(fadeIn);
-    }, 50);
-
+    const engine = new AmbientEngine();
+    ambientRef.current = engine;
+    // Build a text hint from the stop for the engine to pick a mood
+    const hint = `${currentStop.name} ${currentStop.type} ${currentStop.description || ""} ${currentStop.notes || ""}`;
+    engine.play(hint, 0.36);
     return () => {
-      clearInterval(fadeIn);
-      let v = audio.volume;
-      const fadeOut = setInterval(() => {
-        v = Math.max(v - 0.05, 0);
-        audio.volume = v;
-        if (v <= 0) {
-          clearInterval(fadeOut);
-          audio.pause();
-          audio.src = "";
-        }
-      }, 50);
+      engine.stop();
+      ambientRef.current = null;
     };
-  }, [currentStop.type]);
+  }, [currentStop]);
 
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = muteAmbient ? 0 : 0.35;
-    }
+    ambientRef.current?.setMuted(muteAmbient);
   }, [muteAmbient]);
 
   // ── Street View ──
   useEffect(() => {
-    if (!svAvailable || !streetViewRef.current || imagineState === "ready") return;
+    if (!svAvailable || !streetViewRef.current) return;
 
     const initPanorama = () => {
       if (!streetViewRef.current) return;
@@ -167,11 +127,11 @@ export function ImmersiveView({
     }
 
     return () => {};
-  }, [svAvailable, currentStop, imagineState]);
+  }, [svAvailable, currentStop]);
 
   // ── Mapbox Fallback ──
   useEffect(() => {
-    if (svAvailable || !mapboxRef.current || imagineState === "ready") return;
+    if (svAvailable || !mapboxRef.current) return;
 
     let map: unknown = null;
     let animId: number | null = null;
@@ -209,7 +169,7 @@ export function ImmersiveView({
         (map as { remove: () => void }).remove();
       }
     };
-  }, [svAvailable, currentStop, imagineState]);
+  }, [svAvailable, currentStop]);
 
   // ── Narration ──
   const playNarration = useCallback(
@@ -403,11 +363,7 @@ export function ImmersiveView({
       narrationAudioRef.current.src = "";
       narrationAudioRef.current = null;
     }
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = "";
-      audioRef.current = null;
-    }
+    ambientRef.current?.stop();
     setIsNarrating(false);
     setIsListening(false);
   }, []);
@@ -424,12 +380,62 @@ export function ImmersiveView({
     };
   }, [killAllAudio]);
 
+  // ── Helper: narrate the imagined scene ──
+  const narrateImaginedScene = useCallback(
+    async (prompt: string, caption: string | null) => {
+      setIsNarrating(true);
+      try {
+        const description = caption || prompt;
+        const res = await fetch("/api/speak", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stopName: `${currentStop.name} — Imagined`,
+            stopType: "imagined",
+            stopNotes: `The traveler imagined: "${prompt}". Scene: ${description}. Briefly introduce what they're seeing in this AI-generated world.`,
+            timeOfDay,
+            season,
+          }),
+        });
+
+        if (narrationAudioRef.current) narrationAudioRef.current.pause();
+
+        const contentType = res.headers.get("Content-Type") || "";
+        if (contentType.includes("audio")) {
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          narrationAudioRef.current = audio;
+          audio.onended = () => {
+            setIsNarrating(false);
+            URL.revokeObjectURL(url);
+          };
+          await audio.play();
+        } else {
+          setIsNarrating(false);
+        }
+      } catch {
+        setIsNarrating(false);
+      }
+    },
+    [currentStop, timeOfDay, season]
+  );
+
   // ── Imagination: Start Generation ──
   const handleImagineSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       const prompt = imaginePrompt.trim();
       if (!prompt) return;
+
+      // ── Stop all current audio immediately ──
+      if (narrationAudioRef.current) {
+        narrationAudioRef.current.pause();
+        narrationAudioRef.current.src = "";
+        narrationAudioRef.current = null;
+      }
+      setIsNarrating(false);
+      ambientRef.current?.stop(); // Silence ambient music during generation
 
       setImagineState("generating");
       setGenProgress("Sending to World Labs...");
@@ -457,17 +463,30 @@ export function ImmersiveView({
           throw new Error(err.error || "Failed to start generation");
         }
 
-        const { operationId } = await res.json();
+        const { operationId, worldId: initialWorldId } = await res.json();
         setGenProgress("World generation in progress...");
 
-        // Poll for completion every 3 seconds
+        // Track the worldId as it becomes available
+        let knownWorldId = initialWorldId || "";
+
+        // Poll for completion every 4 seconds
         pollRef.current = setInterval(async () => {
           try {
-            const pollRes = await fetch(`/api/imagine?op=${operationId}`);
+            // Build poll URL — include worldId if we have it (for direct pano polling)
+            let pollUrl = `/api/imagine?op=${operationId}`;
+            if (knownWorldId) pollUrl += `&worldId=${knownWorldId}`;
+
+            const pollRes = await fetch(pollUrl);
             const pollData = await pollRes.json();
 
+            // Track worldId from response
+            if (pollData.worldId) knownWorldId = pollData.worldId;
+
+            // Update thumbnail/caption as they become available
+            if (pollData.thumbnailUrl) setThumbnailUrl(pollData.thumbnailUrl);
+            if (pollData.caption) setWorldCaption(pollData.caption);
+
             if (pollData.error && pollData.done) {
-              // Generation failed
               clearInterval(pollRef.current!);
               pollRef.current = null;
               if (genTimerRef.current) { clearInterval(genTimerRef.current); genTimerRef.current = null; }
@@ -476,24 +495,34 @@ export function ImmersiveView({
               return;
             }
 
-            if (pollData.done) {
-              // World is ready!
+            if (pollData.done && pollData.panoUrl) {
+              // Panorama is ready!
               clearInterval(pollRef.current!);
               pollRef.current = null;
               if (genTimerRef.current) { clearInterval(genTimerRef.current); genTimerRef.current = null; }
-              setWorldUrl(pollData.worldUrl || null);
-              setPanoUrl(pollData.panoUrl || null);
+              console.log("[imagine] ✓ Pano ready:", pollData.panoUrl);
+              setPanoUrl(pollData.panoUrl);
+              setThumbnailUrl(pollData.thumbnailUrl || null);
               setWorldCaption(pollData.caption || null);
               setImagineState("ready");
+
+              // ── Start new ambient for the imagined scene ──
+              const sceneHint = `${prompt} ${pollData.caption || ""} ${currentStop.name}`;
+              const newEngine = new AmbientEngine();
+              ambientRef.current = newEngine;
+              newEngine.play(sceneHint, 0.36);
+
+              // ── AI narrates the new environment ──
+              narrateImaginedScene(prompt, pollData.caption || null);
               return;
             }
 
-            // Still in progress — update status text
+            // Still generating or waiting for pano
             setGenProgress(pollData.description || "Generating...");
           } catch {
             // Network error on poll — keep trying
           }
-        }, 3000);
+        }, 4000);
       } catch (err: unknown) {
         if (genTimerRef.current) { clearInterval(genTimerRef.current); genTimerRef.current = null; }
         const msg = err instanceof Error ? err.message : String(err);
@@ -501,34 +530,26 @@ export function ImmersiveView({
         setImagineState("error");
       }
     },
-    [imaginePrompt, currentStop]
+    [imaginePrompt, currentStop, narrateImaginedScene]
   );
 
   const handleBackToStreetView = () => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     if (genTimerRef.current) { clearInterval(genTimerRef.current); genTimerRef.current = null; }
+    // Stop imagined-scene ambient
+    ambientRef.current?.stop();
+    // Restart location ambient
+    const hint = `${currentStop.name} ${currentStop.type} ${currentStop.description || ""} ${currentStop.notes || ""}`;
+    const engine = new AmbientEngine();
+    ambientRef.current = engine;
+    engine.play(hint, 0.36);
+
     setImagineState("idle");
-    setWorldUrl(null);
     setPanoUrl(null);
+    setThumbnailUrl(null);
     setWorldCaption(null);
     setImaginePrompt("");
     setGenError("");
-    setPanoDragX(0);
-  };
-
-  // Panorama drag handlers
-  const handlePanoMouseDown = (e: React.MouseEvent) => {
-    panoDragging.current = true;
-    panoDragStart.current = e.clientX;
-    panoDragOffset.current = panoDragX;
-  };
-  const handlePanoMouseMove = (e: React.MouseEvent) => {
-    if (!panoDragging.current) return;
-    const delta = e.clientX - panoDragStart.current;
-    setPanoDragX(panoDragOffset.current + delta);
-  };
-  const handlePanoMouseUp = () => {
-    panoDragging.current = false;
   };
 
   // ── Navigation ──
@@ -549,7 +570,7 @@ export function ImmersiveView({
     setCurrentStop(stops[nextIndex]);
   };
 
-  const isInImagination = imagineState === "ready" && (panoUrl || worldUrl);
+  const isInImagination = imagineState === "ready";
 
   return (
     <motion.div
@@ -559,45 +580,52 @@ export function ImmersiveView({
       className="fixed inset-0 z-[100] bg-black"
       style={{ width: "100vw", height: "100vh" }}
     >
-      {/* ── Background Layer ── */}
+      {/* ── Background Layer — always render Street View / Mapbox underneath ── */}
       <div className="absolute inset-0">
-        {isInImagination && panoUrl ? (
-          /* World Labs Panorama — drag to look around */
-          <div
-            className="w-full h-full overflow-hidden cursor-grab active:cursor-grabbing select-none"
-            onMouseDown={handlePanoMouseDown}
-            onMouseMove={handlePanoMouseMove}
-            onMouseUp={handlePanoMouseUp}
-            onMouseLeave={handlePanoMouseUp}
-          >
-            <div
-              className="h-full flex transition-none"
-              style={{
-                transform: `translateX(${panoDragX}px)`,
-                width: "300vw", // Extra wide for seamless panning
-                marginLeft: "-100vw",
-              }}
-            >
-              {/* Tiled panorama for seamless wrap */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {[0, 1, 2].map((i) => (
-                <img
-                  key={i}
-                  src={panoUrl}
-                  alt="AI Generated World"
-                  className="h-full object-cover pointer-events-none"
-                  style={{ width: "100vw" }}
-                  draggable={false}
-                />
-              ))}
-            </div>
-          </div>
-        ) : svAvailable ? (
+        {svAvailable ? (
           <div ref={streetViewRef} className="w-full h-full" />
         ) : (
           <div ref={mapboxRef} className="w-full h-full" />
         )}
       </div>
+
+      {/* ── AI Panorama Overlay — renders ON TOP of Street View when ready ── */}
+      <AnimatePresence>
+        {isInImagination && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[5]"
+          >
+            {panoUrl ? (
+              /* 360° panorama sphere — drag to look around like Street View */
+              <PanoViewer imageUrl={panoUrl} />
+            ) : thumbnailUrl ? (
+              /* Thumbnail fallback */
+              <div className="w-full h-full relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={thumbnailUrl}
+                  alt="AI Generated World"
+                  className="w-full h-full object-cover"
+                  draggable={false}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/30" />
+              </div>
+            ) : (
+              /* No visual — caption card */
+              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-purple-950/60 via-black to-black p-8">
+                <Sparkles size={48} className="text-purple-400 mb-4" />
+                <h2 className="text-xl font-bold text-white mb-3">Your Imagined World</h2>
+                <p className="text-zinc-300 text-sm max-w-lg text-center leading-relaxed">
+                  {worldCaption || `"${imaginePrompt}"`}
+                </p>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Generating Overlay ── */}
       <AnimatePresence>
@@ -617,7 +645,7 @@ export function ImmersiveView({
                 <h3 className="text-xl font-bold text-white">Creating Your World</h3>
                 <p className="text-zinc-400 text-sm">{genProgress}</p>
                 <p className="text-zinc-600 text-xs">
-                  {genElapsed}s elapsed — typically takes 30–60 seconds
+                  {genElapsed}s elapsed — typically takes 3–5 minutes
                 </p>
               </div>
               <div className="w-64 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
@@ -866,21 +894,10 @@ export function ImmersiveView({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="flex items-center gap-3 px-4 py-2 rounded-full bg-purple-950/80 backdrop-blur-md border border-purple-500/30"
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-950/80 backdrop-blur-md border border-purple-500/30 text-purple-300 text-xs font-medium"
               >
-                <span className="flex items-center gap-2 text-purple-300 text-xs font-medium">
-                  <Sparkles size={14} className="text-purple-400" />
-                  AI-Generated World — Drag to look around
-                </span>
-                {worldUrl && (
-                  <button
-                    onClick={() => window.open(worldUrl, "_blank", "noopener,noreferrer")}
-                    className="flex items-center gap-1 px-3 py-1 rounded-full bg-purple-600 text-white text-[11px] font-semibold hover:bg-purple-500 transition-colors"
-                  >
-                    <ExternalLink size={12} />
-                    Open Full 3D
-                  </button>
-                )}
+                <Sparkles size={14} className="text-purple-400" />
+                {panoUrl ? "AI-Generated World — Drag to look around" : "AI-Generated World"}
               </motion.div>
             )}
           </AnimatePresence>
