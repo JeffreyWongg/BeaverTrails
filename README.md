@@ -32,6 +32,18 @@ beavertrails uses advanced AI models (Google Gemini via OpenRouter) to analyze y
 
 ---
 
+## How to Run 
+
+To run this project locally, simply execute the following commands in your terminal:
+
+1. Install the required dependencies:
+   ```bash
+   npm i
+   npm run dev
+   ```
+
+---
+
 ## Architecture
 
 **Itinerary Generation Pipeline**  
