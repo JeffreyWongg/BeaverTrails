@@ -22,9 +22,21 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const [canadaFeatures, setCanadaFeatures] = useState<Feature<Geometry>[]>([]);
 
-  // Fetch TopoJSON and extract Canada polygon
+  // Preload texture image immediately
   useEffect(() => {
-    fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
+    const img = new Image();
+    img.src = "https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg";
+  }, []);
+
+  // Fetch TopoJSON and extract Canada polygon - start immediately
+  useEffect(() => {
+    // Use AbortController for cleanup if component unmounts
+    const controller = new AbortController();
+    
+    fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json", {
+      signal: controller.signal,
+      cache: "force-cache", // Use browser cache if available
+    })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
@@ -41,8 +53,12 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
         }
       })
       .catch((err: Error) => {
-        console.error("[Globe] Failed to load country data:", err);
+        if (err.name !== "AbortError") {
+          console.error("[Globe] Failed to load country data:", err);
+        }
       });
+
+    return () => controller.abort();
   }, []);
 
   // Configure globe once ready

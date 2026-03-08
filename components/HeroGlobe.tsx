@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 
 const Globe = dynamic(() => import("./Globe"), {
@@ -9,15 +9,26 @@ const Globe = dynamic(() => import("./Globe"), {
 });
 
 export default function HeroGlobe() {
-  const [dimensions, setDimensions] = useState({ width: 800, height: 800 });
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 1200, height: 1200 });
 
   const updateDimensions = useCallback(() => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    // Globe is 115% of the larger container dimension — slight overflow for drama
-    const size = Math.max(rect.width, rect.height) * 1.15;
+    // Globe size based on viewport, not container - can grow freely
+    const size = Math.max(window.innerWidth, window.innerHeight) * 1.5;
     setDimensions({ width: size, height: size });
+  }, []);
+
+  // Preload globe resources as early as possible
+  useEffect(() => {
+    // Preload texture
+    const img = new Image();
+    img.src = "https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg";
+    
+    // Prefetch TopoJSON data
+    fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json", {
+      cache: "force-cache",
+    }).catch(() => {
+      // Silent fail - Globe component will retry
+    });
   }, []);
 
   useEffect(() => {
@@ -27,18 +38,15 @@ export default function HeroGlobe() {
   }, [updateDimensions]);
 
   return (
-    <div ref={containerRef} className="relative w-full h-full overflow-hidden">
-      {/* Center the globe in the container via absolute + translate */}
-      <div
-        className="absolute top-1/2 left-1/2"
-        style={{
-          width: dimensions.width,
-          height: dimensions.height,
-          transform: "translate(-50%, -50%)",
-        }}
-      >
-        <Globe width={dimensions.width} height={dimensions.height} />
-      </div>
+    <div
+      className="fixed top-1/2 right-0 z-0"
+      style={{
+        width: dimensions.width,
+        height: dimensions.height,
+        transform: "translate(25%, -50%)",
+      }}
+    >
+      <Globe width={dimensions.width} height={dimensions.height} />
     </div>
   );
 }
