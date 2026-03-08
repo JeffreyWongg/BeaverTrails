@@ -1,56 +1,24 @@
-"use client";
-
-import { useState, useEffect, useCallback } from "react";
-import dynamic from "next/dynamic";
-
-const SurveyGlobe3D = dynamic(() => import("./SurveyGlobe3D"), {
-  ssr: false,
-  loading: () => null,
-});
-
 export default function SurveyGlobe() {
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    const update = () => {
-      const size = Math.max(window.innerWidth, window.innerHeight) * 1.7;
-      setDimensions({ width: size, height: size });
-    };
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-
-  const handleReady = useCallback(() => setReady(true), []);
-
-  if (!dimensions.width) return null;
-
   return (
-    <div
-      className="fixed inset-0 pointer-events-none select-none overflow-hidden"
-      style={{
-        opacity: ready ? 1 : 0,
-        transition: "opacity 2s ease",
-        filter: "saturate(0.08) brightness(1.8) contrast(0.5) opacity(0.45)",
-      }}
-    >
-      <div
+    <div className="fixed inset-0 pointer-events-none select-none z-0">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/surveybg.png"
+        alt=""
+        className="w-full h-full object-cover"
         style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          width: dimensions.width,
-          height: dimensions.height,
+          filter: "brightness(1.05) saturate(0.85)",
+          opacity: 0.92,
         }}
-      >
-        <SurveyGlobe3D
-          width={dimensions.width}
-          height={dimensions.height}
-          onReady={handleReady}
-        />
-      </div>
+      />
+      {/* Soft vignette so edges blend into the card */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 70% 70% at center, transparent 40%, rgba(253,250,246,0.55) 100%)",
+        }}
+      />
     </div>
   );
 }
