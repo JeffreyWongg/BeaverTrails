@@ -50,8 +50,16 @@ export async function POST(req: Request) {
     const responseText = await response.text();
     if (!response.ok) {
       console.error(`[imagine] Error ${response.status}: ${responseText}`);
+      let userMessage = "Failed to start world generation";
+      if (response.status === 402) {
+        userMessage = "World Labs credits exhausted — add credits at worldlabs.ai to continue generating worlds.";
+      } else if (response.status === 429) {
+        userMessage = "World Labs rate limit hit — wait a moment and try again.";
+      } else if (response.status === 401) {
+        userMessage = "World Labs API key is invalid or expired.";
+      }
       return NextResponse.json(
-        { error: "Failed to start world generation", detail: responseText },
+        { error: userMessage, detail: responseText },
         { status: response.status }
       );
     }

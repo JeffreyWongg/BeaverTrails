@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Mic, MicOff, Volume2, VolumeX,
   ChevronLeft, ChevronRight, Sparkles, ArrowLeft, Loader2, Send,
-  Glasses, Compass,
+  Glasses, Compass, PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import { useSurveyStore } from "../../../lib/store";
 import { Stop } from "../../../types";
@@ -40,16 +40,17 @@ export function ImmersiveView({
   const bearingAnimRef = useRef<number | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const panoRef = useRef<PanoViewerHandle>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
   const timeOfDay = initialTime || "Day";
   const season = initialSeason || "Summer";
   const [isNarrating, setIsNarrating] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [muteAmbient, setMuteAmbient] = useState(false);
-  const [qaOverlay, setQaOverlay] = useState<{ q: string; a: string } | null>(null);
-  const [qaFading, setQaFading] = useState(false);
+  // Chat history is used instead of single Q&A overlay
   const [textQuestion, setTextQuestion] = useState("");
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatHistory, setChatHistory] = useState<Array<{ role: "user" | "beav"; text: string }>>([]);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [currentStop, setCurrentStop] = useState<Stop>(initialStop);
 
@@ -59,6 +60,7 @@ export function ImmersiveView({
   const [inVR, setInVR] = useState(false);
   const [gyroActive, setGyroActive] = useState(false);
   const [vrError, setVrError] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const handleXRStatus = useCallback((caps: XRCapabilities) => {
     setVrSupported(caps.vrSupported);
@@ -88,6 +90,7 @@ export function ImmersiveView({
     setPanoUrl(null);
     setThumbnailUrl(null);
     setImaginePrompt("");
+    setChatHistory([]);
   }, [initialIndex, initialStop]);
 
   const stopKey =
@@ -111,6 +114,13 @@ export function ImmersiveView({
   useEffect(() => {
     ambientRef.current?.setMuted(muteAmbient);
   }, [muteAmbient]);
+
+  // Auto-scroll chat to bottom on new messages
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatHistory, isChatLoading]);
 
   // ── Street View ──
   const [svFailed, setSvFailed] = useState(false);
@@ -266,6 +276,53 @@ export function ImmersiveView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Cut narration immediately ──
+  const cutNarration = useCallback(() => {
+    if (narrationAudioRef.current) {
+      narrationAudioRef.current.pause();
+      narrationAudioRef.current.src = "";
+      narrationAudioRef.current = null;
+    }
+    setIsNarrating(false);
+  }, []);
+
+  // ── Speak text aloud via ElevenLabs ──
+  const speakText = useCallback(
+    async (text: string) => {
+      cutNarration(); // Always cut existing narration first
+      try {
+        const speakRes = await fetch("/api/speak", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stopName: currentStop.name,
+            stopType: currentStop.type,
+            stopNotes: text,
+            timeOfDay,
+            season,
+            preGeneratedText: text, // Skip AI generation, just TTS this text
+          }),
+        });
+        const ct = speakRes.headers.get("Content-Type") || "";
+        if (ct.includes("audio")) {
+          const blob = await speakRes.blob();
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          narrationAudioRef.current = audio;
+          audio.onended = () => {
+            setIsNarrating(false);
+            URL.revokeObjectURL(url);
+          };
+          setIsNarrating(true);
+          await audio.play();
+        }
+      } catch {
+        setIsNarrating(false);
+      }
+    },
+    [currentStop, timeOfDay, season, cutNarration]
+  );
+
   // ── Chat Q&A ──
   const fetchAssistantAnswer = useCallback(
     async (prompt: string) => {
@@ -326,96 +383,65 @@ export function ImmersiveView({
     recognition.onresult = async (event: any) => {
       setIsListening(false);
       const transcript = event.results[0][0].transcript;
+
+      // Cut existing narration
+      cutNarration();
+
+      // Add to chat history
+      setChatHistory((prev) => [...prev, { role: "user", text: transcript }]);
+      setIsChatLoading(true);
+
       try {
         const answer = await fetchAssistantAnswer(transcript);
-        setQaOverlay({ q: transcript, a: answer });
-        setQaFading(false);
-
-        const speakRes = await fetch("/api/speak", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            stopName: currentStop.name,
-            stopType: currentStop.type,
-            stopNotes: answer,
-            timeOfDay,
-            season,
-          }),
-        });
-        const ct = speakRes.headers.get("Content-Type") || "";
-        if (ct.includes("audio")) {
-          const blob = await speakRes.blob();
-          const url = URL.createObjectURL(blob);
-          if (narrationAudioRef.current) narrationAudioRef.current.pause();
-          const audio = new Audio(url);
-          narrationAudioRef.current = audio;
-          audio.onended = () => {
-            setIsNarrating(false);
-            URL.revokeObjectURL(url);
-          };
-          setIsNarrating(true);
-          await audio.play();
-        }
-        setTimeout(() => {
-          setQaFading(true);
-          setTimeout(() => setQaOverlay(null), 1000);
-        }, 5000);
+        setChatHistory((prev) => [...prev, { role: "beav", text: answer }]);
+        speakText(answer);
       } catch {
-        setIsListening(false);
+        setChatHistory((prev) => [
+          ...prev,
+          { role: "beav", text: "Sorry, I had trouble answering that." },
+        ]);
+      } finally {
+        setIsChatLoading(false);
       }
     };
 
     recognition.onerror = () => setIsListening(false);
     recognition.onend = () => setIsListening(false);
     recognition.start();
-  }, [fetchAssistantAnswer, currentStop.name, currentStop.type, timeOfDay, season]);
+  }, [fetchAssistantAnswer, cutNarration, speakText]);
 
   const handleTextAsk = useCallback(
     async (event: React.FormEvent) => {
       event.preventDefault();
       const trimmed = textQuestion.trim();
       if (!trimmed) return;
+
+      // Immediately cut any playing narration
+      cutNarration();
+
+      // Add user message to chat history
+      setChatHistory((prev) => [...prev, { role: "user", text: trimmed }]);
+      setTextQuestion("");
       setIsChatLoading(true);
+
       try {
         const answer = await fetchAssistantAnswer(trimmed);
-        setQaOverlay({ q: trimmed, a: answer });
-        setQaFading(false);
 
-        const speakRes = await fetch("/api/speak", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            stopName: currentStop.name,
-            stopType: currentStop.type,
-            stopNotes: answer,
-            timeOfDay,
-            season,
-          }),
-        });
-        const ct = speakRes.headers.get("Content-Type") || "";
-        if (ct.includes("audio")) {
-          const blob = await speakRes.blob();
-          const url = URL.createObjectURL(blob);
-          if (narrationAudioRef.current) narrationAudioRef.current.pause();
-          const audio = new Audio(url);
-          narrationAudioRef.current = audio;
-          audio.onended = () => {
-            setIsNarrating(false);
-            URL.revokeObjectURL(url);
-          };
-          setIsNarrating(true);
-          await audio.play();
-        }
-        setTimeout(() => {
-          setQaFading(true);
-          setTimeout(() => setQaOverlay(null), 1000);
-        }, 5000);
-        setTextQuestion("");
+        // Add Beav's response to chat history
+        setChatHistory((prev) => [...prev, { role: "beav", text: answer }]);
+
+        // Voice the response aloud
+        speakText(answer);
+      } catch {
+        setChatHistory((prev) => [
+          ...prev,
+          { role: "beav", text: "Sorry, I had trouble answering that. Try again?" },
+        ]);
       } finally {
         setIsChatLoading(false);
       }
     },
-    [textQuestion, fetchAssistantAnswer, currentStop.name, currentStop.type, timeOfDay, season]
+    [textQuestion, fetchAssistantAnswer, cutNarration, speakText]
   );
 
   // ── Kill Audio (immediate — used on close/unmount) ──
@@ -455,7 +481,7 @@ export function ImmersiveView({
           body: JSON.stringify({
             stopName: `${currentStop.name} — Imagined`,
             stopType: "imagined",
-            stopNotes: `The traveler imagined: "${prompt}". Scene: ${description}. Briefly introduce what they're seeing in this AI-generated world.`,
+            stopNotes: `User asked to see: "${prompt}". Scene description: ${description}. Give a quick, casual 1-2 sentence reaction to what this place looks like now.`,
             timeOfDay,
             season,
           }),
@@ -783,13 +809,34 @@ export function ImmersiveView({
         )}
       </AnimatePresence>
 
-      {/* ── Left Sidebar (always visible) ── */}
-      <div className="absolute inset-y-6 left-6 z-10 w-[320px] pointer-events-none">
+      {/* ── Sidebar Toggle Button (visible when collapsed) ── */}
+      <AnimatePresence>
+        {!sidebarOpen && (
+          <motion.button
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -10 }}
+            onClick={() => setSidebarOpen(true)}
+            className="absolute top-6 left-6 z-10 w-10 h-10 rounded-full bg-zinc-950/80 backdrop-blur-md border border-zinc-700 flex items-center justify-center text-zinc-300 hover:text-white hover:bg-zinc-800/80 transition-colors pointer-events-auto"
+            title="Open sidebar"
+          >
+            <PanelLeftOpen size={18} />
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* ── Left Sidebar (collapsible) ── */}
+      <motion.div
+        initial={false}
+        animate={{ x: sidebarOpen ? 0 : -340, opacity: sidebarOpen ? 1 : 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="absolute inset-y-6 left-6 z-10 w-[320px] pointer-events-none"
+      >
         <div className="h-full bg-zinc-950/85 backdrop-blur-xl rounded-3xl border border-zinc-800 flex flex-col p-5 space-y-4 pointer-events-auto">
           {/* Header */}
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-[11px] uppercase tracking-[0.16em] font-semibold"
                   style={{ color: isInImagination ? "#c084fc" : "#34d399" }}
                 >
@@ -805,45 +852,88 @@ export function ImmersiveView({
                   {currentStop.name}
                 </h2>
               </div>
-              {isNarrating && (
-                <span className="flex flex-col items-end gap-1 text-red-500 text-[10px] font-semibold">
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    Live
+              <div className="flex items-center gap-1.5">
+                {isNarrating && (
+                  <span className="flex flex-col items-end gap-1 text-red-500 text-[10px] font-semibold">
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                      Live
+                    </span>
+                    <span className="text-zinc-400 text-[9px]">Narration</span>
                   </span>
-                  <span className="text-zinc-400 text-[9px]">Narration</span>
-                </span>
-              )}
+                )}
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="w-7 h-7 rounded-lg bg-zinc-800/60 hover:bg-zinc-700/80 flex items-center justify-center text-zinc-400 hover:text-white transition-colors flex-shrink-0"
+                  title="Collapse sidebar"
+                >
+                  <PanelLeftClose size={14} />
+                </button>
+              </div>
             </div>
             <p className="text-[11px] text-zinc-500">
               Stop {currentIndex + 1} of {stops.length}
             </p>
           </div>
 
-          {/* Description */}
+          {/* Description + Chat */}
           <div className="flex-1 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 p-3 overflow-hidden">
-            <div className="h-full overflow-y-auto pr-1 space-y-2">
+            <div ref={chatScrollRef} className="h-full overflow-y-auto pr-1 space-y-2">
+              {/* Always show location description first */}
               {isInImagination && worldCaption ? (
-                <>
+                <div className="pb-2 border-b border-zinc-800/50 mb-2">
                   <p className="text-[10px] uppercase tracking-wider text-purple-400 font-bold mb-1">
                     AI-Generated Scene
                   </p>
                   <p className="text-[12px] text-zinc-200 leading-relaxed italic">
                     &ldquo;{imaginePrompt}&rdquo;
                   </p>
-                  <p className="text-[11px] text-zinc-400 leading-relaxed mt-2">
+                  <p className="text-[11px] text-zinc-400 leading-relaxed mt-1">
                     {worldCaption}
                   </p>
-                </>
+                </div>
               ) : (
-                <>
+                <div className={chatHistory.length > 0 ? "pb-2 border-b border-zinc-800/50 mb-2" : ""}>
                   <p className="text-[12px] text-zinc-200 leading-relaxed">
                     {currentStop.description || currentStop.notes || "A memorable stop on your BeaverTrails adventure."}
                   </p>
-                  <p className="text-[11px] text-zinc-500">
-                    Ask Beav about history, hidden gems, or what to look for in this view.
-                  </p>
-                </>
+                  {chatHistory.length === 0 && (
+                    <p className="text-[11px] text-zinc-500 mt-1">
+                      Ask Beav anything about this place.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Chat messages */}
+              {chatHistory.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-xl px-2.5 py-1.5 text-[11px] leading-relaxed ${
+                      msg.role === "user"
+                        ? "bg-emerald-600/30 text-emerald-200 border border-emerald-700/40"
+                        : "bg-zinc-800/70 text-zinc-200 border border-zinc-700/40"
+                    }`}
+                  >
+                    {msg.role === "beav" && (
+                      <span className="text-[9px] font-bold text-emerald-400 block mb-0.5">Beav</span>
+                    )}
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+
+              {/* Loading indicator */}
+              {isChatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-zinc-800/70 border border-zinc-700/40 rounded-xl px-2.5 py-1.5 text-[11px] text-zinc-400">
+                    <span className="text-[9px] font-bold text-emerald-400 block mb-0.5">Beav</span>
+                    <span className="animate-pulse">Thinking...</span>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -899,7 +989,7 @@ export function ImmersiveView({
             </form>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* ── Top-right: XR controls + Mute + Exit ── */}
       <div className="absolute top-6 right-6 z-10 flex items-center gap-2">
@@ -1091,22 +1181,7 @@ export function ImmersiveView({
         </button>
       </div>
 
-      {/* ── Q&A Overlay ── */}
-      <AnimatePresence>
-        {qaOverlay && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: qaFading ? 0 : 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="absolute bottom-32 left-1/2 -translate-x-1/2 z-10 max-w-lg w-full px-4"
-          >
-            <div className="bg-zinc-950/90 backdrop-blur-md rounded-2xl p-4 border border-zinc-700 space-y-2">
-              <p className="text-zinc-400 text-xs italic">&ldquo;{qaOverlay.q}&rdquo;</p>
-              <p className="text-white text-sm leading-relaxed">{qaOverlay.a}</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Q&A Overlay removed — chat is now inline in the left sidebar */}
     </motion.div>
   );
 }

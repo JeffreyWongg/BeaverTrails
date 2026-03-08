@@ -4,8 +4,7 @@ import { useSurveyStore } from "../../../lib/store";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState } from "react";
 import { Stop } from "../../../types";
-import { ChevronDown, ChevronUp, Car, Plane, Train, Ship, ArrowRightCircle, BedDouble, Download, Loader2, ShoppingCart, UtensilsCrossed, MapPin, TreePine, Bus } from "lucide-react";
-import { downloadItineraryPDF } from "./ItineraryPDF";
+import { ChevronDown, ChevronUp, Car, Plane, Train, Ship, ArrowRightCircle, BedDouble, ShoppingCart, UtensilsCrossed, MapPin, TreePine, Bus } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface TripSidebarProps {
@@ -15,19 +14,7 @@ interface TripSidebarProps {
 export function TripSidebar({ onStopClick }: TripSidebarProps) {
   const { itinerary, travellerArchetype } = useSurveyStore();
   const [expandedDay, setExpandedDay] = useState<number | null>(1);
-  const [downloading, setDownloading] = useState(false);
   const router = useRouter();
-
-  const handleDownloadPDF = async () => {
-    setDownloading(true);
-    try {
-      await downloadItineraryPDF(itinerary, travellerArchetype);
-    } catch (err) {
-      console.error("PDF download failed:", err);
-    } finally {
-      setDownloading(false);
-    }
-  };
 
   const getTravelIcon = (method: string) => {
     switch (method) {
@@ -63,14 +50,6 @@ export function TripSidebar({ onStopClick }: TripSidebarProps) {
                 <p className="text-zinc-400 text-sm">Crafted for {travellerArchetype}</p>
              </div>
              <div className="flex items-center gap-2 mt-1">
-                <button
-                   onClick={handleDownloadPDF}
-                   disabled={downloading}
-                   title="Save as PDF"
-                   className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-600 text-zinc-400 hover:text-emerald-400 transition-colors disabled:opacity-50"
-                >
-                   {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                </button>
                 <button
                    onClick={() => router.push("/checkout")}
                    title="Finalize Trip"

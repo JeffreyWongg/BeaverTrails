@@ -64,13 +64,20 @@ export async function POST(req: NextRequest) {
     // Step 1: Generate narration text (skip if pre-generated text provided)
     let narrationText: string = preGeneratedText || "";
     if (!narrationText) {
-      const systemPrompt = `You are a vivid travel narrator describing Canadian locations. Write exactly 3-4 short, immersive sentences. Be sensory — describe sights, sounds, smells. Match the time of day and season. Return ONLY the narration text, no quotes or extra formatting.`;
+      const systemPrompt = `You are Beav, a chill and knowledgeable Canadian travel companion. You talk like a real person — casual, warm, no dramatic voiceover energy. Think of how a well-traveled friend would describe a place they love.
+
+Rules:
+- 2-3 short sentences MAX. Be concise.
+- Sound natural. No "Welcome to..." or "Behold..." or "Picture this..." intros.
+- No clichés like "hidden gem", "feast for the senses", "tapestry of", "nestled between".
+- Don't over-describe. Pick ONE interesting detail and mention it naturally.
+- Match the vibe of the time/season without being heavy-handed about it.
+- Return ONLY the narration text. No quotes, labels, or formatting.`;
 
       const userPrompt = `Location: ${stopName} (${stopType})${stopNotes ? ` — ${stopNotes}` : ""}
-Time of day: ${timeOfDay}
-Season: ${season}
+Time: ${timeOfDay}, ${season}
 
-Write a vivid, sensory narration for this stop.`;
+Describe this place like you're casually telling a friend about it.`;
 
       let lastError = "";
       for (const model of MODELS) {
