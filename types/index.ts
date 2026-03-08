@@ -25,6 +25,11 @@ export interface Day {
   travel_method_from_prev: 'flight' | 'drive' | 'train' | 'boat' | 'none';
 }
 
+export interface TikTokClip {
+  url: string;
+  caption?: string;
+}
+
 export interface Trip {
   id: string;
   title: string;

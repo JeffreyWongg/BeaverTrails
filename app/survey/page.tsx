@@ -10,10 +10,11 @@ import { TripDurationStep } from "./components/TripDurationStep";
 import { BudgetStep } from "./components/BudgetStep";
 import { LuggageStep } from "./components/LuggageStep";
 import { StartingCityStep } from "./components/StartingCityStep";
+import { TikTokStep } from "./components/TikTokStep";
 import { useRouter } from "next/navigation";
 import { ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
 
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 8;
 
 export default function SurveyPage() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -37,6 +38,7 @@ export default function SurveyPage() {
           budgetPerPerson: surveyState.budgetPerPerson,
           luggageAmount: surveyState.luggageAmount,
           startingCity: surveyState.startingCity,
+          tiktokClips: surveyState.tiktokClips,
         };
 
         const controller = new AbortController();
@@ -81,6 +83,7 @@ export default function SurveyPage() {
       case 5: return !surveyState.budgetPerPerson;
       case 6: return !surveyState.luggageAmount;
       case 7: return !surveyState.startingCity;
+      case 8: return false;
       default: return false;
     }
   };
@@ -126,6 +129,7 @@ export default function SurveyPage() {
                 {currentStep === 5 && <BudgetStep />}
                 {currentStep === 6 && <LuggageStep />}
                 {currentStep === 7 && <StartingCityStep />}
+                {currentStep === 8 && <TikTokStep />}
              </motion.div>
           </AnimatePresence>
         </div>

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Day, Stop } from '../types';
+import { Day, Stop, TikTokClip } from '../types';
 
 export interface SurveyState {
   ageRange: string;
@@ -9,6 +9,9 @@ export interface SurveyState {
   budgetPerPerson: string;
   luggageAmount: string;
   startingCity: { name: string; coordinates?: [number, number] } | null;
+
+  // TikTok inspiration clips added during survey
+  tiktokClips: TikTokClip[];
 
   // Results from AI Step 1
   travellerArchetype: string | null;
@@ -49,6 +52,7 @@ const initialState = {
   budgetPerPerson: '',
   luggageAmount: '',
   startingCity: null,
+  tiktokClips: [],
   travellerArchetype: null,
   recommendedProvinces: [],
   activities: [],
