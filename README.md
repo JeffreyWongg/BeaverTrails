@@ -127,5 +127,5 @@ Location Context → Procedural Generation (Web Audio API) → Layered Oscillato
 
 ## Links
 
-
-- Devpost submission: coming soon
+- Try it Here: https://beavertrail.vercel.app/
+- Devpost Submission: Coming Soon!
