@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 import HeroGlobe from "@/components/HeroGlobe";
@@ -17,7 +18,7 @@ export default function Home() {
   const section3Opacity = useTransform(scrollYProgress, [0.8, 0.92], [0, 1]);
 
   return (
-    <div ref={containerRef} className="relative bg-black">
+    <div ref={containerRef} className="relative bg-[#FAF7F2]">
       {/* ── Globe (fixed, moves via scroll) — placed first so it's behind everything ── */}
       <HeroGlobe scrollProgress={scrollYProgress} />
 
@@ -29,25 +30,32 @@ export default function Home() {
         className="fixed top-0 left-0 right-0 z-20 px-8 md:px-12 lg:px-16 xl:px-20 py-6"
       >
         <div className="flex items-center justify-between">
-          <Link href="/" className="text-white text-lg tracking-wide">
+          <Link href="/" className="flex items-center gap-2 text-gray-900 text-lg tracking-wide">
             BeaverTrails
+            <Image 
+              src="/logo.png" 
+              alt="BeaverTrails Logo" 
+              width={32} 
+              height={32}
+              className="object-contain"
+            />
           </Link>
           <div className="hidden md:flex items-center gap-8">
             <Link
               href="/explore"
-              className="text-white/80 hover:text-white text-sm transition-colors duration-200"
+              className="text-gray-500 hover:text-gray-900 text-sm transition-colors duration-200"
             >
               Explore
             </Link>
             <Link
               href="/plan"
-              className="text-white/80 hover:text-white text-sm transition-colors duration-200"
+              className="text-gray-500 hover:text-gray-900 text-sm transition-colors duration-200"
             >
               Plan Trip
             </Link>
             <Link
               href="/about"
-              className="text-white/80 hover:text-white text-sm transition-colors duration-200"
+              className="text-gray-500 hover:text-gray-900 text-sm transition-colors duration-200"
             >
               About
             </Link>
@@ -64,7 +72,7 @@ export default function Home() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1, ease: "easeOut" }}
-              className="text-5xl md:text-6xl lg:text-7xl xl:text-8xl text-white leading-tight tracking-tight mb-6"
+              className="text-5xl md:text-6xl lg:text-7xl xl:text-8xl text-gray-900 leading-tight tracking-tight mb-6"
             >
               Discover Canada
             </motion.h1>
@@ -73,7 +81,7 @@ export default function Home() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.2 }}
-              className="text-lg md:text-xl text-white/80 leading-relaxed mb-10 max-w-md"
+              className="text-lg md:text-xl text-gray-500 leading-relaxed mb-10 max-w-md"
             >
               Explore trails, cities, and hidden places across the country.
             </motion.p>
@@ -85,7 +93,11 @@ export default function Home() {
             >
               <Link
                 href="/survey"
-                className="inline-flex items-center gap-3 px-7 py-3.5 border border-white/20 text-white rounded-full text-lg md:text-xl leading-relaxed group glow-button"
+                className="inline-flex items-center gap-3 px-7 py-3.5 text-white rounded-full text-lg md:text-xl leading-relaxed group transition-all hover:scale-[1.03] active:scale-[0.98]"
+                style={{
+                  background: "linear-gradient(135deg, #D97B4A, #C89A7A)",
+                  boxShadow: "0 4px 24px rgba(217,123,74,0.35), 0 8px 48px rgba(217,123,74,0.15)",
+                }}
               >
                 Start Planning
                 <svg
@@ -125,42 +137,42 @@ export default function Home() {
             style={{ opacity: section2Opacity }}
             className="flex flex-col justify-center px-8 md:px-12 lg:px-16 xl:px-20 relative z-10"
           >
-            <h2 className="text-5xl md:text-6xl lg:text-7xl xl:text-8xl text-white leading-tight tracking-tight mb-8">
+            <h2 className="text-5xl md:text-6xl lg:text-7xl xl:text-8xl text-gray-900 leading-tight tracking-tight mb-8">
               How It Works
             </h2>
             
             <div className="space-y-6 max-w-lg">
               <div className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full border border-white/30 flex items-center justify-center text-white/80 text-sm font-medium mt-1">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full border border-[#D97B4A]/50 flex items-center justify-center text-[#D97B4A]/80 text-sm font-medium mt-1">
                   1
                 </div>
                 <div>
-                  <h3 className="text-xl md:text-2xl text-white mb-2">Answer a Few Questions</h3>
-                  <p className="text-base md:text-lg text-white/70 leading-relaxed">
+                  <h3 className="text-xl md:text-2xl text-gray-900 mb-2">Answer a Few Questions</h3>
+                  <p className="text-base md:text-lg text-gray-500 leading-relaxed">
                     Tell us about your interests, travel style, and what you&apos;d like to experience.
                   </p>
                 </div>
               </div>
 
               <div className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full border border-white/30 flex items-center justify-center text-white/80 text-sm font-medium mt-1">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full border border-[#D97B4A]/50 flex items-center justify-center text-[#D97B4A]/80 text-sm font-medium mt-1">
                   2
                 </div>
                 <div>
-                  <h3 className="text-xl md:text-2xl text-white mb-2">Get Personalized Recommendations</h3>
-                  <p className="text-base md:text-lg text-white/70 leading-relaxed">
+                  <h3 className="text-xl md:text-2xl text-gray-900 mb-2">Get Personalized Recommendations</h3>
+                  <p className="text-base md:text-lg text-gray-500 leading-relaxed">
                     We&apos;ll suggest trails, cities, and hidden gems tailored to your preferences.
                   </p>
                 </div>
               </div>
 
               <div className="flex gap-4">
-                <div className="flex-shrink-0 w-8 h-8 rounded-full border border-white/30 flex items-center justify-center text-white/80 text-sm font-medium mt-1">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full border border-[#D97B4A]/50 flex items-center justify-center text-[#D97B4A]/80 text-sm font-medium mt-1">
                   3
                 </div>
                 <div>
-                  <h3 className="text-xl md:text-2xl text-white mb-2">Build Your Itinerary</h3>
-                  <p className="text-base md:text-lg text-white/70 leading-relaxed">
+                  <h3 className="text-xl md:text-2xl text-gray-900 mb-2">Build Your Itinerary</h3>
+                  <p className="text-base md:text-lg text-gray-500 leading-relaxed">
                     Customize your route, add stops, and plan the perfect Canadian adventure.
                   </p>
                 </div>
@@ -181,10 +193,10 @@ export default function Home() {
         >
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-16 max-w-6xl mx-auto w-full">
             <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 rounded-full border border-white/20 flex items-center justify-center mb-6">
+              <div className="w-16 h-16 rounded-full border border-[#D97B4A]/40 flex items-center justify-center mb-6" style={{ background: "rgba(217,123,74,0.08)" }}>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="h-8 w-8 text-white/80"
+                  className="h-8 w-8 text-[#D97B4A]"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -197,17 +209,17 @@ export default function Home() {
                   />
                 </svg>
               </div>
-              <h3 className="text-2xl md:text-3xl text-white mb-4 font-medium">Trail Discovery</h3>
-              <p className="text-base md:text-lg text-white/70 leading-relaxed max-w-xs">
+              <h3 className="text-2xl md:text-3xl text-gray-900 mb-4 font-medium">Trail Discovery</h3>
+              <p className="text-base md:text-lg text-gray-500 leading-relaxed max-w-xs">
                 Explore thousands of curated trails, from coastal walks to mountain peaks across Canada.
               </p>
             </div>
 
             <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 rounded-full border border-white/20 flex items-center justify-center mb-6">
+              <div className="w-16 h-16 rounded-full border border-[#D97B4A]/40 flex items-center justify-center mb-6" style={{ background: "rgba(217,123,74,0.08)" }}>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="h-8 w-8 text-white/80"
+                  className="h-8 w-8 text-[#D97B4A]"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -220,17 +232,17 @@ export default function Home() {
                   />
                 </svg>
               </div>
-              <h3 className="text-2xl md:text-3xl text-white mb-4 font-medium">Smart Planning</h3>
-              <p className="text-base md:text-lg text-white/70 leading-relaxed max-w-xs">
+              <h3 className="text-2xl md:text-3xl text-gray-900 mb-4 font-medium">Smart Planning</h3>
+              <p className="text-base md:text-lg text-gray-500 leading-relaxed max-w-xs">
                 AI-powered suggestions help you build the perfect itinerary based on your preferences and time.
               </p>
             </div>
 
             <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 rounded-full border border-white/20 flex items-center justify-center mb-6">
+              <div className="w-16 h-16 rounded-full border border-[#D97B4A]/40 flex items-center justify-center mb-6" style={{ background: "rgba(217,123,74,0.08)" }}>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="h-8 w-8 text-white/80"
+                  className="h-8 w-8 text-[#D97B4A]"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -243,8 +255,8 @@ export default function Home() {
                   />
                 </svg>
               </div>
-              <h3 className="text-2xl md:text-3xl text-white mb-4 font-medium">Community Insights</h3>
-              <p className="text-base md:text-lg text-white/70 leading-relaxed max-w-xs">
+              <h3 className="text-2xl md:text-3xl text-gray-900 mb-4 font-medium">Community Insights</h3>
+              <p className="text-base md:text-lg text-gray-500 leading-relaxed max-w-xs">
                 Learn from fellow explorers and discover hidden gems shared by the community.
               </p>
             </div>

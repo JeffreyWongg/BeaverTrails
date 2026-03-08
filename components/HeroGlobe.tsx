@@ -58,7 +58,7 @@ export default function HeroGlobe({ scrollProgress }: HeroGlobeProps) {
   const x = useTransform(
     smoothProgress,
     [0, 0.2, 0.5, 0.6, 0.85, 1],
-    ["25%", "25%", "-12%", "-12%", "5%", "5%"]
+    ["38%", "38%", "-12%", "-12%", "5%", "5%"]
   );
   const y = useTransform(
     smoothProgress,
@@ -80,12 +80,13 @@ export default function HeroGlobe({ scrollProgress }: HeroGlobeProps) {
         x,
         y,
         scale,
-        // Radial mask: globe fades smoothly to transparent at the edges
+        opacity: 1,
+        // Fade only the very outer rim of the sphere so dark ocean edges
+        // blend softly into the cream background without blurring the globe body
         WebkitMaskImage:
-          "radial-gradient(ellipse 55% 55% at center, black 40%, transparent 78%)",
+          "radial-gradient(ellipse 58% 58% at center, black 58%, transparent 88%)",
         maskImage:
-          "radial-gradient(ellipse 55% 55% at center, black 40%, transparent 78%)",
-        opacity: 0.85,
+          "radial-gradient(ellipse 58% 58% at center, black 58%, transparent 88%)",
         willChange: "transform",
       }}
     >

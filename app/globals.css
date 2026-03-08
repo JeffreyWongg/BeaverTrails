@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --background: #000000;
-  --foreground: #ffffff;
+  --background: #FAF7F2;
+  --foreground: #1a1a1a;
 }
 
 body {
@@ -22,14 +22,14 @@ body {
   }
 
   .glow-button {
-    box-shadow: 0 0 20px rgba(255, 255, 255, 0.08), 0 0 40px rgba(255, 255, 255, 0.04);
+    box-shadow: 0 0 20px rgba(217, 123, 74, 0.2), 0 0 40px rgba(217, 123, 74, 0.08);
     transition: all 0.3s ease;
   }
 
   .glow-button:hover {
-    box-shadow: 0 0 30px rgba(255, 255, 255, 0.15), 0 0 60px rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.35);
-    background-color: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0 30px rgba(217, 123, 74, 0.35), 0 0 60px rgba(217, 123, 74, 0.15);
+    border-color: rgba(217, 123, 74, 0.5);
+    background-color: rgba(217, 123, 74, 0.08);
   }
 }
 
