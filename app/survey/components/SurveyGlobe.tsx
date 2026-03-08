@@ -1,53 +1,53 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 
-/**
- * Lightweight CSS-only auto-rotating globe.
- * Uses a scrolling earth texture inside a clipped circle with a radial
- * gradient overlay for spherical shading — no WebGL, no Three.js.
- */
+const SurveyGlobe3D = dynamic(() => import("./SurveyGlobe3D"), {
+  ssr: false,
+  loading: () => null,
+});
+
 export default function SurveyGlobe() {
-  const [loaded, setLoaded] = useState(false);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const img = new Image();
-    img.onload = () => setLoaded(true);
-    img.src =
-      "https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg";
+    const update = () => {
+      const size = Math.max(window.innerWidth, window.innerHeight) * 1.7;
+      setDimensions({ width: size, height: size });
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
   }, []);
 
+  const handleReady = useCallback(() => setReady(true), []);
+
+  if (!dimensions.width) return null;
+
   return (
-    <div className="fixed inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">
+    <div
+      className="fixed inset-0 pointer-events-none select-none overflow-hidden"
+      style={{
+        opacity: ready ? 0.4 : 0,
+        transition: "opacity 2s ease",
+      }}
+    >
       <div
-        className="relative rounded-full overflow-hidden"
         style={{
-          width: "min(180vh, 180vw)",
-          height: "min(180vh, 180vw)",
-          opacity: loaded ? 0.4 : 0,
-          transition: "opacity 3s ease",
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          width: dimensions.width,
+          height: dimensions.height,
         }}
       >
-        {/* Rotating earth texture */}
-        <div
-          className="absolute top-0 left-0 h-full"
-          style={{
-            width: "200%",
-            backgroundImage:
-              "url(https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg)",
-            backgroundSize: "50% 100%",
-            backgroundRepeat: "repeat-x",
-            animation: "survey-globe-spin 90s linear infinite",
-          }}
-        />
-
-        {/* Spherical shading overlay */}
-        <div
-          className="absolute inset-0 rounded-full"
-          style={{
-            background:
-              "radial-gradient(circle at 35% 35%, transparent 15%, rgba(0,0,0,0.3) 55%, rgba(0,0,0,0.7) 100%)",
-          }}
+        <SurveyGlobe3D
+          width={dimensions.width}
+          height={dimensions.height}
+          onReady={handleReady}
         />
       </div>
     </div>
