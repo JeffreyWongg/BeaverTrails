@@ -79,11 +79,12 @@ export default function TripPage() {
 
   if (!itinerary || itinerary.length === 0) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 text-white">
-        <h1 className="text-2xl text-zinc-400 mb-4">No itinerary generated.</h1>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#FAF7F2] text-gray-900">
+        <p className="text-xs uppercase tracking-[0.2em] text-gray-400 mb-3">No itinerary found</p>
+        <h1 className="text-2xl font-medium text-gray-700 mb-6">Nothing to explore yet.</h1>
         <button
           onClick={() => router.push("/preferences")}
-          className="text-emerald-400 underline"
+          className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#C89A7A] text-white text-sm font-medium hover:bg-[#B88A6A] transition-colors"
         >
           Go Back
         </button>
@@ -102,7 +103,7 @@ export default function TripPage() {
       : -1;
 
   return (
-    <div className="w-full h-screen overflow-hidden flex bg-zinc-950 text-white">
+    <div className="w-full h-screen overflow-hidden flex bg-[#FAF7F2] text-gray-900">
       <div className="w-[70%] h-full relative">
         <TripMap
           onStopClick={setSelectedStop}

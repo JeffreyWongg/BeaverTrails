@@ -703,13 +703,14 @@ export function ImmersiveView({
 
       {/* ── Left Sidebar (always visible) ── */}
       <div className="absolute inset-y-6 left-6 z-10 w-[320px] pointer-events-none">
-        <div className="h-full bg-zinc-950/85 backdrop-blur-xl rounded-3xl border border-zinc-800 flex flex-col p-5 space-y-4 pointer-events-auto">
+        <div className="h-full bg-black/70 backdrop-blur-xl rounded-3xl border border-white/10 flex flex-col p-5 space-y-4 pointer-events-auto">
           {/* Header */}
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.16em] font-semibold"
-                  style={{ color: isInImagination ? "#c084fc" : "#34d399" }}
+                <p
+                  className="text-[11px] uppercase tracking-[0.16em] font-semibold"
+                  style={{ color: isInImagination ? "#c084fc" : "#D97B4A" }}
                 >
                   {isInImagination
                     ? "✨ Imagined World"
@@ -724,41 +725,43 @@ export function ImmersiveView({
                 </h2>
               </div>
               {isNarrating && (
-                <span className="flex flex-col items-end gap-1 text-red-500 text-[10px] font-semibold">
+                <span className="flex flex-col items-end gap-1 text-red-400 text-[10px] font-semibold">
                   <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
                     Live
                   </span>
-                  <span className="text-zinc-400 text-[9px]">Narration</span>
+                  <span className="text-white/40 text-[9px]">Narration</span>
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-zinc-500">
+            <p className="text-[11px] text-white/40">
               Stop {currentIndex + 1} of {stops.length}
             </p>
           </div>
 
           {/* Description */}
-          <div className="flex-1 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 p-3 overflow-hidden">
+          <div className="flex-1 rounded-2xl bg-white/5 border border-white/10 p-3 overflow-hidden">
             <div className="h-full overflow-y-auto pr-1 space-y-2">
               {isInImagination && worldCaption ? (
                 <>
                   <p className="text-[10px] uppercase tracking-wider text-purple-400 font-bold mb-1">
                     AI-Generated Scene
                   </p>
-                  <p className="text-[12px] text-zinc-200 leading-relaxed italic">
+                  <p className="text-[12px] text-white/80 leading-relaxed italic">
                     &ldquo;{imaginePrompt}&rdquo;
                   </p>
-                  <p className="text-[11px] text-zinc-400 leading-relaxed mt-2">
+                  <p className="text-[11px] text-white/50 leading-relaxed mt-2">
                     {worldCaption}
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="text-[12px] text-zinc-200 leading-relaxed">
-                    {currentStop.description || currentStop.notes || "A memorable stop on your BeaverTrails adventure."}
+                  <p className="text-[12px] text-white/80 leading-relaxed">
+                    {currentStop.description ||
+                      currentStop.notes ||
+                      "A memorable stop on your BeaverTrails adventure."}
                   </p>
-                  <p className="text-[11px] text-zinc-500">
+                  <p className="text-[11px] text-white/40">
                     Ask Beav about history, hidden gems, or what to look for in this view.
                   </p>
                 </>
@@ -782,17 +785,17 @@ export function ImmersiveView({
                   <button
                     onClick={handlePrevStop}
                     disabled={!hasPrev}
-                    className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-full border border-zinc-700 bg-zinc-900/70 text-[11px] text-zinc-200 hover:border-emerald-500 hover:text-emerald-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-full border border-white/20 bg-white/10 text-[11px] text-white/70 hover:border-[#D97B4A]/60 hover:text-[#D97B4A] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     <ChevronLeft size={14} />
-                    Prev stop
+                    Prev
                   </button>
                   <button
                     onClick={handleNextStop}
                     disabled={!hasNext}
-                    className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-full border border-zinc-700 bg-zinc-900/70 text-[11px] text-zinc-200 hover:border-emerald-500 hover:text-emerald-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="inline-flex items-center justify-center gap-1 px-3 py-1.5 rounded-full border border-white/20 bg-white/10 text-[11px] text-white/70 hover:border-[#D97B4A]/60 hover:text-[#D97B4A] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >
-                    Next stop
+                    Next
                     <ChevronRight size={14} />
                   </button>
                 </>
@@ -804,15 +807,16 @@ export function ImmersiveView({
                 type="text"
                 value={textQuestion}
                 onChange={(e) => setTextQuestion(e.target.value)}
-                placeholder="Ask Beav about this view..."
-                className="flex-1 rounded-full bg-zinc-900/80 border border-zinc-700 px-3 py-1.5 text-[12px] text-white placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/70 focus:border-emerald-500"
+                placeholder="Ask Beav about this view…"
+                className="flex-1 rounded-full bg-white/10 border border-white/20 px-3 py-1.5 text-[12px] text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#D97B4A]/50 focus:border-[#D97B4A]/50"
               />
               <button
                 type="submit"
                 disabled={!textQuestion.trim() || isChatLoading}
-                className="px-3 py-1.5 rounded-full bg-emerald-500 text-[11px] font-semibold text-black hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 rounded-full text-[11px] font-semibold text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+                style={{ background: "linear-gradient(135deg, #D97B4A, #C89A7A)" }}
               >
-                {isChatLoading ? "..." : "Ask"}
+                {isChatLoading ? "…" : "Ask"}
               </button>
             </form>
           </div>
@@ -823,13 +827,16 @@ export function ImmersiveView({
       <div className="absolute top-6 right-6 z-10 flex items-center gap-2">
         <button
           onClick={() => setMuteAmbient((m) => !m)}
-          className="w-10 h-10 rounded-full bg-zinc-950/80 backdrop-blur-md flex items-center justify-center text-zinc-300 hover:text-white transition-colors"
+          className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors"
         >
           {muteAmbient ? <VolumeX size={18} /> : <Volume2 size={18} />}
         </button>
         <button
-          onClick={() => { killAllAudio(); onClose(); }}
-          className="w-10 h-10 rounded-full bg-zinc-950/80 backdrop-blur-md flex items-center justify-center text-zinc-300 hover:text-white transition-colors"
+          onClick={() => {
+            killAllAudio();
+            onClose();
+          }}
+          className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors"
         >
           <X size={20} />
         </button>
@@ -860,16 +867,16 @@ export function ImmersiveView({
                 animate={{ opacity: 1, y: 0, width: 480 }}
                 exit={{ opacity: 0, y: 10 }}
                 onSubmit={handleImagineSubmit}
-                className="flex items-center gap-2 bg-zinc-950/90 backdrop-blur-xl rounded-full border border-purple-500/40 px-3 py-2 shadow-lg shadow-purple-900/30"
+                className="flex items-center gap-2 bg-black/80 backdrop-blur-xl rounded-full border border-purple-500/40 px-3 py-2 shadow-lg shadow-purple-900/30"
               >
                 <Sparkles size={16} className="text-purple-400 flex-shrink-0 ml-1" />
                 <input
                   type="text"
                   value={imaginePrompt}
                   onChange={(e) => setImaginePrompt(e.target.value)}
-                  placeholder="e.g. &quot;this place at night in a snowstorm&quot;"
+                  placeholder='e.g. "this place at night in a snowstorm"'
                   autoFocus
-                  className="flex-1 bg-transparent text-white text-sm placeholder:text-zinc-500 focus:outline-none"
+                  className="flex-1 bg-transparent text-white text-sm placeholder:text-white/30 focus:outline-none"
                 />
                 <button
                   type="submit"
@@ -880,8 +887,11 @@ export function ImmersiveView({
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setImagineState("idle"); setImaginePrompt(""); }}
-                  className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition-colors flex-shrink-0"
+                  onClick={() => {
+                    setImagineState("idle");
+                    setImaginePrompt("");
+                  }}
+                  className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors flex-shrink-0"
                 >
                   <X size={14} />
                 </button>
@@ -910,8 +920,8 @@ export function ImmersiveView({
           onClick={handleMic}
           className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all ${
             isListening
-              ? "bg-red-600 animate-pulse text-white"
-              : "bg-zinc-950/80 backdrop-blur-md text-zinc-300 hover:text-white border border-zinc-700"
+              ? "bg-red-500 animate-pulse text-white"
+              : "bg-black/60 backdrop-blur-md text-white/60 hover:text-white border border-white/10"
           }`}
         >
           {isListening ? <MicOff size={20} /> : <Mic size={20} />}
@@ -927,8 +937,8 @@ export function ImmersiveView({
             exit={{ opacity: 0 }}
             className="absolute bottom-32 left-1/2 -translate-x-1/2 z-10 max-w-lg w-full px-4"
           >
-            <div className="bg-zinc-950/90 backdrop-blur-md rounded-2xl p-4 border border-zinc-700 space-y-2">
-              <p className="text-zinc-400 text-xs italic">&ldquo;{qaOverlay.q}&rdquo;</p>
+            <div className="bg-black/80 backdrop-blur-md rounded-2xl p-4 border border-white/10 space-y-2">
+              <p className="text-white/40 text-xs italic">&ldquo;{qaOverlay.q}&rdquo;</p>
               <p className="text-white text-sm leading-relaxed">{qaOverlay.a}</p>
             </div>
           </motion.div>
