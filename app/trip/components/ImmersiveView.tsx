@@ -691,7 +691,8 @@ export function ImmersiveView({
                 </button>
                 <button
                   onClick={() => setImagineState("input")}
-                  className="px-4 py-2 rounded-full bg-purple-600 text-white text-sm hover:bg-purple-500 transition-colors"
+                  className="px-4 py-2 rounded-full text-white text-sm transition-opacity hover:opacity-90"
+                  style={{ background: "linear-gradient(135deg, #D97B4A, #C89A7A)" }}
                 >
                   Try Again
                 </button>
@@ -710,7 +711,7 @@ export function ImmersiveView({
               <div>
                 <p
                   className="text-[11px] uppercase tracking-[0.16em] font-semibold"
-                  style={{ color: isInImagination ? "#c084fc" : "#D97B4A" }}
+                  style={{ color: "#D97B4A" }}
                 >
                   {isInImagination
                     ? "✨ Imagined World"
@@ -744,7 +745,7 @@ export function ImmersiveView({
             <div className="h-full overflow-y-auto pr-1 space-y-2">
               {isInImagination && worldCaption ? (
                 <>
-                  <p className="text-[10px] uppercase tracking-wider text-purple-400 font-bold mb-1">
+                  <p className="text-[10px] uppercase tracking-wider font-bold mb-1" style={{ color: "#D97B4A" }}>
                     AI-Generated Scene
                   </p>
                   <p className="text-[12px] text-white/80 leading-relaxed italic">
@@ -853,7 +854,12 @@ export function ImmersiveView({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
                 onClick={() => setImagineState("input")}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white text-sm font-semibold shadow-lg shadow-purple-900/40 hover:shadow-purple-700/50 hover:scale-105 transition-all border border-purple-500/30"
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full text-white text-sm font-semibold shadow-lg hover:scale-105 transition-all border"
+                style={{ 
+                  background: "linear-gradient(135deg, #D97B4A, #C89A7A)",
+                  boxShadow: "0 4px 20px rgba(217,123,74,0.35)",
+                  borderColor: "rgba(217,123,74,0.3)"
+                }}
               >
                 <Sparkles size={16} />
                 Imagine This
@@ -867,9 +873,13 @@ export function ImmersiveView({
                 animate={{ opacity: 1, y: 0, width: 480 }}
                 exit={{ opacity: 0, y: 10 }}
                 onSubmit={handleImagineSubmit}
-                className="flex items-center gap-2 bg-black/80 backdrop-blur-xl rounded-full border border-purple-500/40 px-3 py-2 shadow-lg shadow-purple-900/30"
+                className="flex items-center gap-2 bg-black/80 backdrop-blur-xl rounded-full border px-3 py-2 shadow-lg"
+                style={{ 
+                  borderColor: "rgba(217,123,74,0.4)",
+                  boxShadow: "0 4px 20px rgba(217,123,74,0.3)"
+                }}
               >
-                <Sparkles size={16} className="text-purple-400 flex-shrink-0 ml-1" />
+                <Sparkles size={16} className="flex-shrink-0 ml-1" style={{ color: "#D97B4A" }} />
                 <input
                   type="text"
                   value={imaginePrompt}
@@ -881,7 +891,8 @@ export function ImmersiveView({
                 <button
                   type="submit"
                   disabled={!imaginePrompt.trim()}
-                  className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white hover:bg-purple-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white transition-opacity hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                  style={{ background: "linear-gradient(135deg, #D97B4A, #C89A7A)" }}
                 >
                   <Send size={14} />
                 </button>
@@ -904,9 +915,14 @@ export function ImmersiveView({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-purple-950/80 backdrop-blur-md border border-purple-500/30 text-purple-300 text-xs font-medium"
+                className="flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-md border text-xs font-medium"
+                style={{ 
+                  background: "rgba(217,123,74,0.2)",
+                  borderColor: "rgba(217,123,74,0.3)",
+                  color: "#D97B4A"
+                }}
               >
-                <Sparkles size={14} className="text-purple-400" />
+                <Sparkles size={14} style={{ color: "#D97B4A" }} />
                 {panoUrl ? "AI-Generated World — Drag to look around" : "AI-Generated World"}
               </motion.div>
             )}
