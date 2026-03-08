@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 export const auth0 = new Auth0Client({
   httpTimeout: 15000, // 15s for discovery/token requests (default 5s can timeout on slow networks)
   signInReturnToPath: "/plan", // after login → start travel plan page, then user goes to survey
-  onCallback: async (error, ctx, session) => {
+  onCallback: async (error, ctx) => {
     if (error) {
       const cause = (error as { cause?: { code?: string; message?: string } }).cause;
       console.error("[Auth0 callback error]", error.message, cause ? { code: cause.code, message: cause.message } : "");
