@@ -11,6 +11,7 @@ import { BudgetStep } from "./components/BudgetStep";
 import { LuggageStep } from "./components/LuggageStep";
 import { StartingCityStep } from "./components/StartingCityStep";
 import { TikTokStep } from "./components/TikTokStep";
+import SurveyGlobe from "./components/SurveyGlobe";
 import { useRouter } from "next/navigation";
 import { ChevronRight, ChevronLeft, Loader2, Check } from "lucide-react";
 
@@ -131,12 +132,12 @@ export default function SurveyPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-4 overflow-hidden relative">
-      {/* Background blobs for aesthetic */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-900/20 blur-[120px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-900/20 blur-[120px] rounded-full pointer-events-none" />
+    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 overflow-hidden relative">
+      {/* Background auto-rotating globe */}
+      <SurveyGlobe />
 
-      <div className="w-full max-w-2xl z-10">
+      {/* Floating survey card */}
+      <div className="relative z-10 w-full max-w-3xl bg-zinc-900 rounded-3xl border border-white/[0.06] shadow-[0_0_80px_rgba(0,0,0,0.5)] px-8 py-8 sm:px-10">
         {/* Progress Circles */}
         <div className="mb-12">
           <div className="flex items-center justify-between w-full">

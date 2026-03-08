@@ -33,6 +33,11 @@ body {
   }
 }
 
+@keyframes survey-globe-spin {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
 @media print {
   * {
     -webkit-print-color-adjust: exact;
