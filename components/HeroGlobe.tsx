@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { motion, useTransform, type MotionValue } from "framer-motion";
 import dynamic from "next/dynamic";
 
 const Globe = dynamic(() => import("./Globe"), {
@@ -8,7 +9,11 @@ const Globe = dynamic(() => import("./Globe"), {
   loading: () => null,
 });
 
-export default function HeroGlobe() {
+interface HeroGlobeProps {
+  scrollProgress: MotionValue<number>;
+}
+
+export default function HeroGlobe({ scrollProgress }: HeroGlobeProps) {
   const [dimensions, setDimensions] = useState({ width: 1200, height: 1200 });
 
   const updateDimensions = useCallback(() => {
@@ -37,16 +42,24 @@ export default function HeroGlobe() {
     return () => window.removeEventListener("resize", updateDimensions);
   }, [updateDimensions]);
 
+  // Transform scroll progress to globe position
+  // L-shaped path: down (0-40%), left (40-70%), down-left (70-100%)
+  const x = useTransform(scrollProgress, [0, 0.4, 0.7, 1], ["25%", "25%", "-25%", "-25%"]);
+  const y = useTransform(scrollProgress, [0, 0.4, 0.7, 1], ["-50%", "-20%", "-20%", "0%"]);
+  const scale = useTransform(scrollProgress, [0, 0.7, 1], [1, 1, 0.85]);
+
   return (
-    <div
+    <motion.div
       className="fixed top-1/2 right-0 z-0"
       style={{
         width: dimensions.width,
         height: dimensions.height,
-        transform: "translate(25%, -50%)",
+        x,
+        y,
+        scale,
       }}
     >
       <Globe width={dimensions.width} height={dimensions.height} />
-    </div>
+    </motion.div>
   );
 }

@@ -12,15 +12,31 @@ interface GlobeComponentProps {
   height?: number;
 }
 
-// Pulsing ring markers — Ottawa & Toronto
-const CANADIAN_RINGS = [
-  { lat: 45.4247, lng: -75.695, maxR: 3, propagationSpeed: 1.5, repeatPeriod: 1200 },
-  { lat: 43.6532, lng: -79.3832, maxR: 4, propagationSpeed: 2, repeatPeriod: 1400 },
+// Route waypoints — looping journey across Canada
+const ROUTE = [
+  { name: "Toronto", lat: 43.6532, lng: -79.3832 },
+  { name: "Ottawa", lat: 45.4247, lng: -75.695 },
+  { name: "Montreal", lat: 45.5017, lng: -73.5673 },
+  { name: "Vancouver", lat: 49.2827, lng: -123.1207 },
+  { name: "Calgary", lat: 51.0447, lng: -114.0719 },
+  { name: "Winnipeg", lat: 49.8951, lng: -97.1384 },
 ];
+
+interface ArcData {
+  startLat: number;
+  startLng: number;
+  endLat: number;
+  endLng: number;
+}
 
 export default function GlobeComponent({ width = 800, height = 800 }: GlobeComponentProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
   const [canadaFeatures, setCanadaFeatures] = useState<Feature<Geometry>[]>([]);
+  const [arcsData, setArcsData] = useState<ArcData[]>([]);
+  const [currentRing, setCurrentRing] = useState<{ lat: number; lng: number; maxR: number; propagationSpeed: number; repeatPeriod: number } | null>(null);
+  const [isGlobeReady, setIsGlobeReady] = useState(false);
+  const routeIndexRef = useRef(0);
+  const animationTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Preload texture image immediately
   useEffect(() => {
@@ -66,13 +82,28 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
     const globe = globeRef.current;
     if (!globe) return;
 
-    // Camera focused on Canada
-    globe.pointOfView({ lat: 56, lng: -106, altitude: 2.0 }, 0);
+    setIsGlobeReady(true);
 
-    // Auto-rotation via OrbitControls
-    const controls = globe.controls();
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.4;
+    // Start at first city (Toronto)
+    const startCity = ROUTE[0];
+    globe.pointOfView({ lat: startCity.lat, lng: startCity.lng, altitude: 2.0 }, 0);
+
+    // Set initial ring at first city
+    setCurrentRing({
+      lat: startCity.lat,
+      lng: startCity.lng,
+      maxR: 4,
+      propagationSpeed: 2,
+      repeatPeriod: 1400,
+    });
+
+    // Disable zoom so mouse-wheel scrolls the page instead of zooming the globe
+    try {
+      const controls = globe.controls();
+      controls.enableZoom = false;
+    } catch {
+      // non-critical
+    }
 
     // Adjust lighting — let the texture show its natural colors
     try {
@@ -92,6 +123,68 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
     }
   }, []);
 
+  // Route animation loop
+  useEffect(() => {
+    if (!isGlobeReady) return;
+
+    const globe = globeRef.current;
+    if (!globe) return;
+
+    const animateRoute = () => {
+      const currentIndex = routeIndexRef.current;
+      const currentCity = ROUTE[currentIndex];
+      const nextIndex = (currentIndex + 1) % ROUTE.length;
+      const nextCity = ROUTE[nextIndex];
+
+      // Always replace with a single arc (never accumulate)
+      setArcsData(() => [
+        {
+          startLat: currentCity.lat,
+          startLng: currentCity.lng,
+          endLat: nextCity.lat,
+          endLng: nextCity.lng,
+        },
+      ]);
+
+      // Update ring to next destination
+      setCurrentRing({
+        lat: nextCity.lat,
+        lng: nextCity.lng,
+        maxR: 4,
+        propagationSpeed: 2,
+        repeatPeriod: 1400,
+      });
+
+      // Pan camera to next city (3000ms transition)
+      globe.pointOfView({ lat: nextCity.lat, lng: nextCity.lng, altitude: 2.0 }, 3000);
+
+      // Move to next city after transition completes
+      animationTimerRef.current = setTimeout(() => {
+        routeIndexRef.current = nextIndex;
+
+        // Clear the arc when we reach the destination
+        setArcsData(() => []);
+
+        // Small delay before starting next leg to ensure arc is cleared
+        setTimeout(() => {
+          animateRoute();
+        }, 100);
+      }, 3500); // 3000ms transition + 500ms dwell
+    };
+
+    // Start animation after a brief delay to let globe initialize
+    const startTimer = setTimeout(() => {
+      animateRoute();
+    }, 1000);
+
+    return () => {
+      if (startTimer) clearTimeout(startTimer);
+      if (animationTimerRef.current) {
+        clearTimeout(animationTimerRef.current);
+      }
+    };
+  }, [isGlobeReady]);
+
   return (
     <GlobeGL
       ref={globeRef}
@@ -109,14 +202,25 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
       polygonSideColor={() => "rgba(180, 220, 255, 0.05)"}
       polygonStrokeColor={() => "rgba(180, 220, 255, 0.25)"}
       polygonLabel={() => ""}
-      // Pulsing rings
-      ringsData={CANADIAN_RINGS}
+      // Arcs between cities
+      arcsData={arcsData}
+      arcStartLat="startLat"
+      arcStartLng="startLng"
+      arcEndLat="endLat"
+      arcEndLng="endLng"
+      arcColor={() => "rgba(110, 200, 170, 0.6)"}
+      arcDashLength={0.4}
+      arcDashGap={0.2}
+      arcDashAnimateTime={2000}
+      // Pulsing ring at current destination (rendered on top)
+      ringsData={currentRing ? [currentRing] : []}
       ringLat="lat"
       ringLng="lng"
       ringColor={() => "rgba(110, 200, 170, 0.4)"}
       ringMaxRadius="maxR"
       ringPropagationSpeed="propagationSpeed"
       ringRepeatPeriod="repeatPeriod"
+      ringAltitude={0.02}
       // Interaction
       enablePointerInteraction={true}
       animateIn={false}

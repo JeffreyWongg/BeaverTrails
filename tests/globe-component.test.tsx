@@ -26,8 +26,8 @@ const mockScene = vi.fn(() => ({
     { type: "AmbientLight", intensity: 1 },
   ],
 }));
-// Mutable controls object — component sets autoRotate/autoRotateSpeed directly on it
-const mockControls = { autoRotate: false, autoRotateSpeed: 0 };
+// Mutable controls object — component sets properties directly on it
+const mockControls = { autoRotate: false, autoRotateSpeed: 0, enableZoom: true };
 const mockControlsFn = vi.fn(() => mockControls);
 
 vi.mock("react-globe.gl", () => {
@@ -61,6 +61,9 @@ vi.mock("react-globe.gl", () => {
       "data-rings-count": Array.isArray(props.ringsData)
         ? (props.ringsData as unknown[]).length
         : 0,
+      "data-arcs-count": Array.isArray(props.arcsData)
+        ? (props.arcsData as unknown[]).length
+        : 0,
       "data-globe-image-url": props.globeImageUrl,
       "data-ring-color":
         typeof props.ringColor === "function"
@@ -84,6 +87,7 @@ describe("GlobeComponent", () => {
     // Reset controls state between tests
     mockControls.autoRotate = false;
     mockControls.autoRotateSpeed = 0;
+    mockControls.enableZoom = true;
     // Mock fetch to return valid TopoJSON-like data
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -138,10 +142,11 @@ describe("GlobeComponent", () => {
     expect(globe.getAttribute("data-atmosphere-color")).toBe("#4a90d9");
   });
 
-  it("passes ring data for 2 Canadian cities", () => {
+  it("passes ring data for current destination city (single ring)", () => {
     render(<GlobeComponent width={800} height={800} />);
     const globe = screen.getByTestId("globe-mock");
-    expect(globe.getAttribute("data-rings-count")).toBe("2");
+    // Initially should have 1 ring at the starting city
+    expect(globe.getAttribute("data-rings-count")).toBe("1");
   });
 
   it("uses Blue Marble globe texture URL", () => {
@@ -158,12 +163,12 @@ describe("GlobeComponent", () => {
     expect(ringColor).not.toContain("NaN");
   });
 
-  it("sets camera to Canada coordinates on globe ready", async () => {
+  it("sets camera to first route city (Toronto) on globe ready", async () => {
     render(<GlobeComponent width={800} height={800} />);
 
     await waitFor(() => {
       expect(mockPointOfView).toHaveBeenCalledWith(
-        { lat: 56, lng: -106, altitude: 2.0 },
+        { lat: 43.6532, lng: -79.3832, altitude: 2.0 },
         0
       );
     });
@@ -182,7 +187,11 @@ describe("GlobeComponent", () => {
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"
+        "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json",
+        expect.objectContaining({
+          cache: "force-cache",
+          signal: expect.any(AbortSignal),
+        })
       );
     });
   });
@@ -202,15 +211,32 @@ describe("GlobeComponent", () => {
     });
   });
 
-  it("enables auto-rotation via controls() on globe ready", async () => {
+  it("does NOT enable auto-rotation on globe ready", async () => {
     render(<GlobeComponent width={800} height={800} />);
 
     await waitFor(() => {
-      // controls() must be called (not a dead JSX prop)
-      expect(mockControlsFn).toHaveBeenCalled();
-      // autoRotate must be set to true on the OrbitControls instance
-      expect(mockControls.autoRotate).toBe(true);
-      expect(mockControls.autoRotateSpeed).toBe(0.4);
+      // controls() may be called for other purposes, but autoRotate should remain false
+      expect(mockControls.autoRotate).toBe(false);
+      expect(mockControls.autoRotateSpeed).toBe(0);
     });
+  });
+
+  it("disables zoom on controls so page scroll works", async () => {
+    render(<GlobeComponent width={800} height={800} />);
+
+    await waitFor(() => {
+      expect(mockControlsFn).toHaveBeenCalled();
+      expect(mockControls.enableZoom).toBe(false);
+    });
+  });
+
+  it("renders arcs data for route animation", async () => {
+    render(<GlobeComponent width={800} height={800} />);
+    
+    await waitFor(() => {
+      const globe = screen.getByTestId("globe-mock");
+      // Globe should have arcsData prop (initially empty, then populated as animation progresses)
+      expect(globe.getAttribute("data-arcs-count")).toBe("0");
+    }, { timeout: 2000 });
   });
 });
