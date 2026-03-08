@@ -32,6 +32,7 @@
     "react-globe.gl": "^2.37.0",
     "three": "^0.183.2",
     "topojson-client": "^3.1.0",
+    "webxr-polyfill": "^2.0.3",
     "zustand": "^5.0.11"
   },
   "devDependencies": {

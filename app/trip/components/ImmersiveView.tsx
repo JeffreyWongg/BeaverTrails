@@ -995,43 +995,27 @@ export function ImmersiveView({
 
       {/* ── Top-right: XR controls + Mute + Exit ── */}
       <div className="absolute top-6 right-6 z-10 flex items-center gap-2">
-        {/* VR button — visible in imagination mode (always show, let WebXR handle errors) */}
-        {isInImagination && (
+        {/* VR button — visible in imagination mode (polyfill enables this on all devices) */}
+        {isInImagination && vrSupported && (
           <button
             onClick={async () => {
-              setVrError(null); // Clear previous errors
+              setVrError(null);
               
               if (inVR) {
                 await panoRef.current?.exitVR();
               } else {
-                // Debug: Check WebXR availability
-                const hasXR = typeof navigator !== "undefined" && !!navigator.xr;
-                const isSecure = window.location.protocol === "https:" || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-                
-                if (!hasXR) {
-                  setVrError("WebXR not detected. Quest Browser may require HTTPS. Try using ngrok or deploy to Vercel.");
-                  return;
-                }
-                
-                if (!isSecure && !window.location.hostname.includes("localhost") && !window.location.hostname.includes("127.0.0.1")) {
-                  setVrError("WebXR requires HTTPS. Use ngrok (npx ngrok http 3000) or deploy to Vercel.");
-                  return;
-                }
-                
                 const success = await panoRef.current?.enterVR();
                 if (!success) {
-                  setVrError("Failed to enter VR. Check browser console for details. Make sure you're using Quest Browser.");
+                  setVrError("Failed to enter VR. On iPhone, use a Google Cardboard viewer for the best experience.");
                 }
               }
             }}
             className={`h-10 px-3 rounded-full backdrop-blur-md flex items-center justify-center gap-1.5 text-xs font-medium transition-all ${
               inVR
-                ? "bg-purple-600/90 text-white border border-purple-400/50 shadow-lg shadow-purple-600/30"
-                : vrSupported
-                ? "bg-zinc-950/80 text-zinc-300 hover:text-white hover:bg-zinc-800/80"
-                : "bg-zinc-950/60 text-zinc-400 hover:text-zinc-300 border border-zinc-700/50"
+                ? "bg-[#D97B4A]/90 text-white border border-[#D97B4A]/50 shadow-lg shadow-[#D97B4A]/30"
+                : "bg-black/60 text-white/70 hover:text-white hover:bg-black/80 border border-white/10"
             }`}
-            title={inVR ? "Exit VR" : vrSupported ? "Enter VR" : "Enter VR (may not be available)"}
+            title={inVR ? "Exit VR" : "Enter VR (Cardboard)"}
           >
             <Glasses size={16} />
             {inVR ? "Exit VR" : "Enter VR"}

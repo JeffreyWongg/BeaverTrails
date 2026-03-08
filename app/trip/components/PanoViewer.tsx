@@ -61,8 +61,7 @@ export const PanoViewer = forwardRef<PanoViewerHandle, PanoViewerProps>(
     useEffect(() => {
       const detect = async () => {
         let vrSupported = false;
-        // Gyroscope detection: most laptops don't have gyros, so we check for mobile devices
-        // (phones/tablets almost always have gyros; laptops rarely do)
+        // Gyroscope detection: phones/tablets almost always have gyros; laptops rarely do
         const isMobileDevice =
           typeof window !== "undefined" &&
           /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
@@ -73,25 +72,32 @@ export const PanoViewer = forwardRef<PanoViewerHandle, PanoViewerProps>(
           typeof DeviceOrientationEvent !== "undefined" &&
           isMobileDevice;
 
-        // Check for WebXR support
-        try {
-          if (typeof navigator !== "undefined" && navigator.xr) {
-            vrSupported = await navigator.xr.isSessionSupported(
-              "immersive-vr"
-            );
-            console.log("[PanoViewer] WebXR immersive-vr supported:", vrSupported);
-          } else {
-            console.warn("[PanoViewer] navigator.xr not available");
+        // Check for WebXR support (native or polyfilled)
+        // The polyfill may take a moment to install, so retry a few times
+        const checkXR = async (retries = 3): Promise<boolean> => {
+          for (let i = 0; i < retries; i++) {
+            try {
+              if (typeof navigator !== "undefined" && navigator.xr) {
+                const supported = await navigator.xr.isSessionSupported("immersive-vr");
+                console.log(`[PanoViewer] WebXR immersive-vr supported: ${supported} (attempt ${i + 1})`);
+                return supported;
+              }
+            } catch (err) {
+              console.warn(`[PanoViewer] WebXR detection attempt ${i + 1} error:`, err);
+            }
+            // Wait 200ms before retrying (polyfill may still be loading)
+            if (i < retries - 1) await new Promise((r) => setTimeout(r, 200));
           }
-        } catch (err) {
-          console.warn("[PanoViewer] WebXR detection error:", err);
-        }
+          console.warn("[PanoViewer] navigator.xr not available after retries");
+          return false;
+        };
 
+        vrSupported = await checkXR();
         onXRStatus?.({ vrSupported, gyroAvailable });
       };
 
-      // Delay detection slightly to ensure page is fully loaded
-      const timeout = setTimeout(detect, 100);
+      // Delay detection to ensure polyfill has had time to install
+      const timeout = setTimeout(detect, 300);
       return () => clearTimeout(timeout);
       // Only run once — onXRStatus is expected to be stable (useCallback)
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,21 +115,21 @@ export const PanoViewer = forwardRef<PanoViewerHandle, PanoViewerProps>(
           }
 
           if (typeof navigator === "undefined" || !navigator.xr) {
-            console.error("[PanoViewer] WebXR not available. Make sure you're using Quest Browser.");
+            console.error("[PanoViewer] WebXR not available (native or polyfill).");
             return false;
           }
 
           try {
-            // Check if immersive-vr is supported (may have changed since page load)
+            // Check if immersive-vr is supported (native or via polyfill)
             const isSupported = await navigator.xr.isSessionSupported("immersive-vr");
             if (!isSupported) {
               console.error("[PanoViewer] immersive-vr not supported on this device");
               return false;
             }
 
-            // Request VR session with Quest-friendly features
-            // "local-floor" = seated/standing tracking (Quest supports this)
-            // "bounded-floor" = room-scale tracking (if available)
+            // Request VR session — the polyfill will provide a cardboard-style
+            // stereo split-screen using DeviceOrientation on devices without
+            // native WebXR (e.g. iPhone Safari).
             const session = await navigator.xr.requestSession("immersive-vr", {
               optionalFeatures: ["local-floor", "bounded-floor", "hand-tracking"],
             });
@@ -137,7 +143,7 @@ export const PanoViewer = forwardRef<PanoViewerHandle, PanoViewerProps>(
               onVRChange?.(false);
             });
 
-            console.log("[PanoViewer] VR session started successfully");
+            console.log("[PanoViewer] VR session started successfully (polyfill or native)");
             return true;
           } catch (err: unknown) {
             const errorMsg = err instanceof Error ? err.message : String(err);
@@ -145,9 +151,9 @@ export const PanoViewer = forwardRef<PanoViewerHandle, PanoViewerProps>(
             
             // Provide helpful error messages
             if (errorMsg.includes("not allowed") || errorMsg.includes("permission")) {
-              console.error("[PanoViewer] WebXR permission denied. Make sure you're using Quest Browser and WebXR is enabled in settings.");
+              console.error("[PanoViewer] Permission denied. On iOS, tap the screen first then try again.");
             } else if (errorMsg.includes("not supported")) {
-              console.error("[PanoViewer] WebXR not supported. Make sure you're using Quest Browser (not Oculus Browser).");
+              console.error("[PanoViewer] WebXR not supported even with polyfill.");
             }
             
             return false;

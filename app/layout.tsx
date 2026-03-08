@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { Newsreader } from "next/font/google";
 import { Auth0Provider } from "@auth0/nextjs-auth0/client";
+import WebXRPolyfillLoader from "@/components/WebXRPolyfill";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -37,6 +38,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} antialiased`}
       >
+        <WebXRPolyfillLoader />
         <Auth0Provider>
           {children}
         </Auth0Provider>
