@@ -28,16 +28,16 @@ export default function SurveyGlobe3D({ width, height, onReady }: SurveyGlobe3DP
       controls.enableZoom = false;
     } catch {}
 
-    // Soften lighting
+    // Brighter lighting to work on light background
     try {
       const scene = globe.scene();
       if (scene) {
         scene.children.forEach((child: { type?: string; intensity?: number }) => {
           if (child.type === "DirectionalLight" && child.intensity !== undefined) {
-            child.intensity = 0.8;
+            child.intensity = 1.2;
           }
           if (child.type === "AmbientLight" && child.intensity !== undefined) {
-            child.intensity = 0.6;
+            child.intensity = 0.9;
           }
         });
       }
@@ -54,10 +54,11 @@ export default function SurveyGlobe3D({ width, height, onReady }: SurveyGlobe3DP
       globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
       backgroundColor="rgba(0,0,0,0)"
       showAtmosphere={true}
-      atmosphereColor="#4a90d9"
-      atmosphereAltitude={0.15}
+      atmosphereColor="#D4956B"
+      atmosphereAltitude={0.12}
       enablePointerInteraction={false}
       animateIn={false}
+      devicePixelRatio={1.5}
       onGlobeReady={handleGlobeReady}
     />
   );

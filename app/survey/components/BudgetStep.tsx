@@ -12,7 +12,7 @@ export function BudgetStep() {
 
   return (
     <div className="flex flex-col items-center">
-      <h2 className="text-2xl font-semibold text-white mb-8 text-center">
+      <h2 className="text-2xl font-semibold text-gray-900 mb-8 text-center">
         What is your budget per person?
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-2xl">
@@ -30,14 +30,14 @@ export function BudgetStep() {
               onClick={() => setField("budgetPerPerson", option.value)}
               className={`p-6 rounded-xl flex flex-col items-center text-center gap-1 border transition-all ${
                 isSelected
-                  ? "border-white bg-white/5 text-white"
-                  : "border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-zinc-600 hover:bg-zinc-900"
+                  ? "border-[#D97B4A] bg-[#D97B4A]/8 text-[#D97B4A]"
+                  : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50"
               }`}
             >
-              <span className={`font-semibold text-lg ${isSelected ? "text-white" : ""}`}>
+              <span className={`font-semibold text-lg ${isSelected ? "text-[#D97B4A]" : ""}`}>
                 {option.label}
               </span>
-              <span className={`text-sm ${isSelected ? "text-zinc-300" : "text-zinc-500"}`}>
+              <span className={`text-sm ${isSelected ? "text-[#D97B4A]/70" : "text-gray-400"}`}>
                 {option.desc}
               </span>
             </motion.button>

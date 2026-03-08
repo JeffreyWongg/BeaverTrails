@@ -8,7 +8,7 @@ export function AgeRangeStep() {
 
   return (
     <div className="flex flex-col items-center">
-      <h2 className="text-2xl font-semibold text-white mb-8 text-center">
+      <h2 className="text-2xl font-semibold text-gray-900 mb-8 text-center">
         What is your age range?
       </h2>
       <div className="flex flex-wrap justify-center gap-3 w-full">
@@ -26,8 +26,8 @@ export function AgeRangeStep() {
               onClick={() => setField("ageRange", option)}
               className={`px-6 py-3 rounded-full border transition-all font-medium ${
                 isSelected
-                  ? "border-white bg-white/5 text-white"
-                  : "border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-zinc-600 hover:bg-zinc-900"
+                  ? "border-[#D97B4A] bg-[#D97B4A]/8 text-[#D97B4A]"
+                  : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50"
               }`}
             >
               {option}

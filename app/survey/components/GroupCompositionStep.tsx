@@ -14,7 +14,7 @@ export function GroupCompositionStep() {
 
   return (
     <div className="flex flex-col items-center">
-      <h2 className="text-2xl font-semibold text-white mb-8 text-center">
+      <h2 className="text-2xl font-semibold text-gray-900 mb-8 text-center">
         Who&apos;s traveling?
       </h2>
       <div className="grid grid-cols-2 gap-3 w-full max-w-md">
@@ -33,11 +33,11 @@ export function GroupCompositionStep() {
               onClick={() => setField("groupComposition", option.value)}
               className={`p-6 rounded-xl flex flex-col items-center gap-3 border transition-all ${
                 isSelected
-                  ? "border-white bg-white/5 text-white"
-                  : "border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-zinc-600 hover:bg-zinc-900"
+                  ? "border-[#D97B4A] bg-[#D97B4A]/8 text-[#D97B4A]"
+                  : "border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50"
               }`}
             >
-              <Icon size={28} className={isSelected ? "text-white" : "text-zinc-500"} />
+              <Icon size={28} className={isSelected ? "text-[#D97B4A]" : "text-gray-400"} />
               <span className="font-medium">{option.label}</span>
             </motion.button>
           );

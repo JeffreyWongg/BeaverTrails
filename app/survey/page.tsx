@@ -43,7 +43,7 @@ export default function SurveyPage() {
         };
 
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 45000); // 45s client timeout
+        const timeout = setTimeout(() => controller.abort(), 45000);
 
         const response = await fetch("/api/analyze-survey", {
           method: "POST",
@@ -59,7 +59,6 @@ export default function SurveyPage() {
            surveyState.setField("travellerArchetype", data.traveller_archetype);
            surveyState.setField("recommendedProvinces", data.recommended_provinces);
 
-           // If the user attached TikTok clips, skip preferences and generate directly
            if (surveyState.tiktokClips.length > 0) {
              const s = useSurveyStore.getState();
              const itineraryPayload = {
@@ -78,7 +77,7 @@ export default function SurveyPage() {
              };
 
              const itinController = new AbortController();
-             const itinTimeout = setTimeout(() => itinController.abort(), 120000); // 2 min timeout
+             const itinTimeout = setTimeout(() => itinController.abort(), 120000);
 
              const itinResponse = await fetch("/api/generate-itinerary", {
                method: "POST",
@@ -95,7 +94,6 @@ export default function SurveyPage() {
                router.push("/trip");
              } else {
                console.error("Failed to generate itinerary:", itinResponse.status);
-               // Fall back to preferences page on failure
                router.push("/preferences");
              }
            } else {
@@ -122,7 +120,7 @@ export default function SurveyPage() {
       case 1: return !surveyState.ageRange;
       case 2: return surveyState.accessibilityNeeds.length === 0;
       case 3: return !surveyState.groupComposition;
-      case 4: return false; // Slider always has a value
+      case 4: return false;
       case 5: return !surveyState.budgetPerPerson;
       case 6: return !surveyState.luggageAmount;
       case 7: return !surveyState.startingCity;
@@ -132,12 +130,12 @@ export default function SurveyPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 overflow-hidden relative">
+    <div className="min-h-screen bg-[#FAF7F2] text-gray-900 flex flex-col items-center justify-center p-4 overflow-hidden relative">
       {/* Background auto-rotating globe */}
       <SurveyGlobe />
 
       {/* Floating survey card */}
-      <div className="relative z-10 w-full max-w-3xl bg-zinc-900 rounded-3xl border border-white/[0.06] shadow-[0_0_80px_rgba(0,0,0,0.5)] px-8 py-8 sm:px-10">
+      <div className="relative z-10 w-full max-w-3xl bg-white rounded-3xl border border-gray-200/80 shadow-[0_4px_40px_rgba(0,0,0,0.06)] px-8 py-8 sm:px-10">
         {/* Progress Circles */}
         <div className="mb-12">
           <div className="flex items-center justify-between w-full">
@@ -151,18 +149,18 @@ export default function SurveyPage() {
                     initial={false}
                     animate={{
                       scale: isCurrent ? 1 : 1,
-                      borderColor: isCompleted || isCurrent ? "#ffffff" : "#3f3f46",
-                      backgroundColor: isCompleted ? "#ffffff" : "transparent",
+                      borderColor: isCompleted || isCurrent ? "#C89A7A" : "#d1d5db",
+                      backgroundColor: isCompleted ? "#C89A7A" : "transparent",
                     }}
                     transition={{ duration: 0.3 }}
                     className={`w-8 h-8 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                      isCurrent ? "border-white" : ""
+                      isCurrent ? "border-[#C89A7A]" : ""
                     }`}
                   >
                     {isCompleted ? (
-                      <Check size={14} className="text-zinc-950" strokeWidth={3} />
+                      <Check size={14} className="text-white" strokeWidth={3} />
                     ) : (
-                      <span className={`text-xs font-medium ${isCurrent ? "text-white" : "text-zinc-500"}`}>
+                      <span className={`text-xs font-medium ${isCurrent ? "text-[#C89A7A]" : "text-gray-400"}`}>
                         {step}
                       </span>
                     )}
@@ -172,7 +170,7 @@ export default function SurveyPage() {
                       <motion.div
                         initial={false}
                         animate={{
-                          backgroundColor: isCompleted ? "#ffffff" : "#3f3f46",
+                          backgroundColor: isCompleted ? "#C89A7A" : "#e5e7eb",
                         }}
                         transition={{ duration: 0.3 }}
                         className="h-full w-full"
@@ -216,7 +214,7 @@ export default function SurveyPage() {
              className={`flex items-center gap-2 px-6 py-3 rounded-full font-medium transition-all ${
                currentStep === 1 || isSubmitting
                 ? "opacity-0 pointer-events-none" 
-                : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+                : "text-gray-400 hover:text-gray-700 hover:bg-gray-100"
              }`}
            >
              <ChevronLeft size={20} />
@@ -228,8 +226,8 @@ export default function SurveyPage() {
              disabled={isNextDisabled() || isSubmitting}
              className={`flex items-center gap-2 px-8 py-3 rounded-full font-medium shadow-lg transition-all transform ${
                isNextDisabled()
-                 ? "bg-zinc-800/50 text-zinc-600 cursor-not-allowed"
-                 : "bg-white text-zinc-950 hover:bg-zinc-200 hover:scale-105 active:scale-95"
+                 ? "bg-gray-200 text-gray-400 cursor-not-allowed shadow-none"
+                 : "bg-[#C89A7A] text-white hover:bg-[#B88A6A] hover:scale-105 active:scale-95 shadow-[0_4px_16px_rgba(200,154,122,0.3)]"
              }`}
            >
              {isSubmitting ? (
