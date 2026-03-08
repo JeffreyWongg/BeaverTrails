@@ -52,12 +52,54 @@ export default function SurveyPage() {
         });
 
         clearTimeout(timeout);
-        
+
         if (response.ok) {
            const data = await response.json();
            surveyState.setField("travellerArchetype", data.traveller_archetype);
            surveyState.setField("recommendedProvinces", data.recommended_provinces);
-           router.push("/preferences");
+
+           // If the user attached TikTok clips, skip preferences and generate directly
+           if (surveyState.tiktokClips.length > 0) {
+             const s = useSurveyStore.getState();
+             const itineraryPayload = {
+               ageRange: s.ageRange,
+               accessibilityNeeds: s.accessibilityNeeds,
+               groupComposition: s.groupComposition,
+               tripDuration: s.tripDuration,
+               budgetPerPerson: s.budgetPerPerson,
+               luggageAmount: s.luggageAmount,
+               startingCity: s.startingCity,
+               travellerArchetype: data.traveller_archetype,
+               recommendedProvinces: data.recommended_provinces,
+               activities: s.activities,
+               dreamTrip: s.dreamTrip,
+               tiktokClips: s.tiktokClips,
+             };
+
+             const itinController = new AbortController();
+             const itinTimeout = setTimeout(() => itinController.abort(), 120000); // 2 min timeout
+
+             const itinResponse = await fetch("/api/generate-itinerary", {
+               method: "POST",
+               headers: { "Content-Type": "application/json" },
+               body: JSON.stringify(itineraryPayload),
+               signal: itinController.signal,
+             });
+
+             clearTimeout(itinTimeout);
+
+             if (itinResponse.ok) {
+               const itinerary = await itinResponse.json();
+               surveyState.setField("itinerary", itinerary);
+               router.push("/trip");
+             } else {
+               console.error("Failed to generate itinerary:", itinResponse.status);
+               // Fall back to preferences page on failure
+               router.push("/preferences");
+             }
+           } else {
+             router.push("/preferences");
+           }
         } else {
            const errorData = await response.text();
            console.error("Survey submission failed:", response.status, errorData);
@@ -161,7 +203,7 @@ export default function SurveyPage() {
              {isSubmitting ? (
                 <>
                   <Loader2 size={20} className="animate-spin" />
-                  Analyzing...
+                  {surveyState.tiktokClips.length > 0 ? "Building your trip..." : "Analyzing..."}
                 </>
              ) : (
                 <>

@@ -28,6 +28,7 @@ export interface Day {
 export interface TikTokClip {
   url: string;
   caption?: string;
+  summary?: string; // AI-generated location summary
 }
 
 export interface Trip {

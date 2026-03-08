@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     const tiktokSummary =
       Array.isArray(surveyData.tiktokClips) && surveyData.tiktokClips.length
         ? `\n\nThey also shared these TikTok travel clips as inspiration (prioritize provinces that match these locations when it makes sense):\n${surveyData.tiktokClips
-            .map((c: { url?: string; caption?: string }, i: number) => `${i + 1}. ${c.caption || "Unknown spot"} — ${c.url || "no URL"}`)
+            .map((c: { url?: string; caption?: string; summary?: string }, i: number) => `${i + 1}. ${c.summary || c.caption || "Unknown spot"} — ${c.url || "no URL"}`)
             .join("\n")}\n`
         : "";
 

@@ -160,14 +160,17 @@ export async function POST(req: Request) {
     const startCity = surveyData.startingCity?.name || "Toronto";
     const provinces = surveyData.recommendedProvinces?.join(", ") || "Ontario";
 
-    const tiktokSummary =
+    const tiktokSection =
       Array.isArray(surveyData.tiktokClips) && surveyData.tiktokClips.length
-        ? `\n\nThe traveler also shared these TikTok travel clips. Treat them as high-priority anchors — include the exact places shown (or very close equivalents) as named stops on logical days, and mention in the descriptions that they came from the traveler's TikTok inspiration:\n${surveyData.tiktokClips
-            .map(
-              (c: { url?: string; caption?: string }, i: number) =>
-                `${i + 1}. ${c.caption || "Unknown spot"} — ${c.url || "no URL"}`
-            )
-            .join("\n")}\n`
+        ? `\n\n⚠️ TIKTOK FOCAL POINTS — These are non-negotiable. The entire trip must be structured around visiting these locations:\n${surveyData.tiktokClips
+            .map((c: { url?: string; caption?: string; summary?: string }, i: number) => {
+              const desc = c.summary || c.caption || "Unknown location";
+              return `${i + 1}. ${desc}${c.url ? ` (source: ${c.url})` : ""}
+   → Dedicate at least a half-day to this location
+   → Add 2–3 complementary nearby stops (local cafes, scenic viewpoints, hidden gems) that pair naturally with this spot
+   → Mention in the stop description that it was inspired by the traveler's TikTok`;
+            })
+            .join("\n")}\n\nAll other stops should geographically orbit around these focal points.\n`
         : "";
 
     const prompt = `${duration}-day Canada trip from ${startCity} through ${provinces}. ${surveyData.travellerArchetype}, likes ${
@@ -178,14 +181,14 @@ Focus on hidden gems and local favorites over tourist traps. Drive when possible
 
 Plan each day as a fully scheduled timeline: in each stop's "description", include clear time-of-day hints (e.g. "08:00 - Land at YYZ and clear customs", "12:30 - Lunch at a nearby café", "18:00 - Sunset at the viewpoint, then walk back to the hotel"). Cover morning, afternoon, and evening with at least 3–5 distinct moments including: intercity travel (flight/train/drive times), hotel check-in/out, at least 2 meal suggestions, and 1–3 key landmarks or experiences.
 
-${tiktokSummary}
+${tiktokSection}
 
 Day schema: {"date_offset":1,"city":"Toronto","city_coordinates":[-79.38,43.65],"province":"Ontario","stops":[{"name":"Graffiti Alley","type":"other","coordinates":[-79.4,43.65],"description":"08:30 - Coffee on Queen Street West.\n10:00 - Stroll through Graffiti Alley for photos of the murals.\n12:30 - Lunch nearby on a patio."}],"overnight_hotel":"The Drake","overnight_hotel_coordinates":[-79.42,43.64],"travel_time_from_prev_hours":0,"travel_method_from_prev":"none"}
 
 JSON array only.`;
 
     const messages = [
-      { role: "system", content: "You are a Canadian travel planning API. Respond with only a raw JSON array — no markdown, no explanation." },
+      { role: "system", content: "You are a Canadian travel planning API. When TikTok focal points are provided, they are the MANDATORY centerpiece of the itinerary — non-negotiable stops. Respond with only a raw JSON array — no markdown, no explanation." },
       { role: "user", content: prompt },
     ];
 
