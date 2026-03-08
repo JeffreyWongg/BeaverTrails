@@ -55,6 +55,7 @@ export const PanoViewer = forwardRef<PanoViewerHandle, PanoViewerProps>(
       xrSession: null as XRSession | null,
       gyroEnabled: false,
       gyro: { alpha: 0, beta: 0, gamma: 0 },
+      isPolyfillVR: false, // true when using fullscreen+gyro mono mode (polyfilled WebXR)
     });
 
     /* ── Detect browser capabilities once ── */
@@ -109,8 +110,9 @@ export const PanoViewer = forwardRef<PanoViewerHandle, PanoViewerProps>(
       () => ({
         enterVR: async () => {
           const r = state.current.renderer;
-          if (!r) {
-            console.error("[PanoViewer] Renderer not initialized");
+          const container = containerRef.current;
+          if (!r || !container) {
+            console.error("[PanoViewer] Renderer or container not initialized");
             return false;
           }
 
@@ -120,16 +122,76 @@ export const PanoViewer = forwardRef<PanoViewerHandle, PanoViewerProps>(
           }
 
           try {
-            // Check if immersive-vr is supported (native or via polyfill)
             const isSupported = await navigator.xr.isSessionSupported("immersive-vr");
             if (!isSupported) {
               console.error("[PanoViewer] immersive-vr not supported on this device");
               return false;
             }
 
-            // Request VR session — the polyfill will provide a cardboard-style
-            // stereo split-screen using DeviceOrientation on devices without
-            // native WebXR (e.g. iPhone Safari).
+            // Detect if we should use mono mode (polyfilled) or native stereo VR.
+            // Native WebXR devices (Quest Browser) get real immersive-vr session.
+            // Everything else (iPhone, laptop) uses fullscreen + gyro mono mode
+            // to avoid the stereo cardboard split-screen.
+            const isQuestBrowser = /OculusBrowser|Quest/i.test(navigator.userAgent);
+            const useMonoMode = !isQuestBrowser;
+
+            if (useMonoMode) {
+              // ── Polyfill Mono VR: fullscreen + gyroscope (no stereo split) ──
+              console.log("[PanoViewer] Entering mono VR mode (fullscreen + gyroscope)");
+              state.current.isPolyfillVR = true;
+
+              // Request fullscreen
+              try {
+                if (container.requestFullscreen) {
+                  await container.requestFullscreen();
+                } else if ((container as unknown as { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen) {
+                  await (container as unknown as { webkitRequestFullscreen: () => Promise<void> }).webkitRequestFullscreen();
+                }
+              } catch (fsErr) {
+                console.warn("[PanoViewer] Fullscreen request failed:", fsErr);
+                // Continue anyway — still works without fullscreen
+              }
+
+              // Enable gyroscope if available
+              state.current.gyroEnabled = true;
+              if (typeof DeviceOrientationEvent !== "undefined") {
+                const doe = DeviceOrientationEvent as unknown as {
+                  requestPermission?: () => Promise<string>;
+                };
+                if (typeof doe.requestPermission === "function") {
+                  try {
+                    const permission = await doe.requestPermission();
+                    if (permission !== "granted") {
+                      console.warn("[PanoViewer] Gyroscope permission denied");
+                      state.current.gyroEnabled = false;
+                    }
+                  } catch {
+                    state.current.gyroEnabled = false;
+                  }
+                }
+              }
+
+              // Listen for fullscreen exit to clean up
+              const onFSChange = () => {
+                const isFS = !!document.fullscreenElement ||
+                  !!(document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement;
+                if (!isFS && state.current.isPolyfillVR) {
+                  state.current.isPolyfillVR = false;
+                  state.current.gyroEnabled = false;
+                  onVRChange?.(false);
+                  document.removeEventListener("fullscreenchange", onFSChange);
+                  document.removeEventListener("webkitfullscreenchange", onFSChange);
+                }
+              };
+              document.addEventListener("fullscreenchange", onFSChange);
+              document.addEventListener("webkitfullscreenchange", onFSChange);
+
+              onVRChange?.(true);
+              console.log("[PanoViewer] Mono VR mode active — use gyroscope to look around");
+              return true;
+            }
+
+            // ── Native WebXR (Quest, etc.) — real immersive-vr session ──
             const session = await navigator.xr.requestSession("immersive-vr", {
               optionalFeatures: ["local-floor", "bounded-floor", "hand-tracking"],
             });
@@ -143,24 +205,30 @@ export const PanoViewer = forwardRef<PanoViewerHandle, PanoViewerProps>(
               onVRChange?.(false);
             });
 
-            console.log("[PanoViewer] VR session started successfully (polyfill or native)");
+            console.log("[PanoViewer] Native VR session started successfully");
             return true;
           } catch (err: unknown) {
             const errorMsg = err instanceof Error ? err.message : String(err);
             console.error("[PanoViewer] Could not start VR session:", errorMsg);
-            
-            // Provide helpful error messages
-            if (errorMsg.includes("not allowed") || errorMsg.includes("permission")) {
-              console.error("[PanoViewer] Permission denied. On iOS, tap the screen first then try again.");
-            } else if (errorMsg.includes("not supported")) {
-              console.error("[PanoViewer] WebXR not supported even with polyfill.");
-            }
-            
             return false;
           }
         },
 
         exitVR: async () => {
+          // Exit polyfill mono mode
+          if (state.current.isPolyfillVR) {
+            state.current.isPolyfillVR = false;
+            state.current.gyroEnabled = false;
+            try {
+              if (document.fullscreenElement) {
+                await document.exitFullscreen();
+              } else if ((document as unknown as { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen) {
+                await (document as unknown as { webkitExitFullscreen: () => Promise<void> }).webkitExitFullscreen();
+              }
+            } catch { /* ignore */ }
+            return;
+          }
+          // Exit native XR session
           const s = state.current.xrSession;
           if (s) {
             await s.end();
@@ -408,7 +476,14 @@ export const PanoViewer = forwardRef<PanoViewerHandle, PanoViewerProps>(
         window.removeEventListener("deviceorientation", onDeviceOrientation);
         window.removeEventListener("resize", onResize);
 
-        // End any active XR session
+        // End any active XR session or polyfill VR mode
+        if (st.isPolyfillVR) {
+          st.isPolyfillVR = false;
+          st.gyroEnabled = false;
+          if (document.fullscreenElement) {
+            document.exitFullscreen().catch(() => {});
+          }
+        }
         if (st.xrSession) {
           st.xrSession.end().catch(() => {});
           st.xrSession = null;
