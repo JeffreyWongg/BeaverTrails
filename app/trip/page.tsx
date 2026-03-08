@@ -23,25 +23,9 @@ export default function TripPage() {
     if (!itinerary) return [];
     const stops: Stop[] = [];
     itinerary.forEach((day) => {
-      if (day.airport && day.airport.coordinates?.length === 2) {
-        stops.push({
-          name: day.airport.name,
-          type: "airport",
-          coordinates: day.airport.coordinates,
-          description: `Arrival airport for your flight into ${day.city}.`,
-        });
-      }
       (day.stops || []).forEach((s) => {
         if (s.coordinates?.length === 2) stops.push(s);
       });
-      if (day.overnight_hotel && day.overnight_hotel_coordinates?.length === 2) {
-        stops.push({
-          name: day.overnight_hotel,
-          type: "hotel",
-          coordinates: day.overnight_hotel_coordinates,
-          description: `Your overnight stay in ${day.city}.`,
-        });
-      }
     });
     return stops;
   }, [itinerary]);
