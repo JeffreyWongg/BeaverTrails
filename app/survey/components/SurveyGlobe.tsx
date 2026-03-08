@@ -30,9 +30,9 @@ export default function SurveyGlobe() {
     <div
       className="fixed inset-0 pointer-events-none select-none overflow-hidden"
       style={{
-        opacity: ready ? 0.18 : 0,
+        opacity: ready ? 1 : 0,
         transition: "opacity 2s ease",
-        filter: "saturate(0.6)",
+        filter: "saturate(0.08) brightness(1.8) contrast(0.5) opacity(0.45)",
       }}
     >
       <div

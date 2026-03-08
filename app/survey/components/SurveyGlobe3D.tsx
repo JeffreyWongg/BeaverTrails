@@ -34,10 +34,10 @@ export default function SurveyGlobe3D({ width, height, onReady }: SurveyGlobe3DP
       if (scene) {
         scene.children.forEach((child: { type?: string; intensity?: number }) => {
           if (child.type === "DirectionalLight" && child.intensity !== undefined) {
-            child.intensity = 1.2;
+            child.intensity = 0.3;
           }
           if (child.type === "AmbientLight" && child.intensity !== undefined) {
-            child.intensity = 0.9;
+            child.intensity = 1.8;
           }
         });
       }
@@ -53,9 +53,7 @@ export default function SurveyGlobe3D({ width, height, onReady }: SurveyGlobe3DP
       height={height}
       globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
       backgroundColor="rgba(0,0,0,0)"
-      showAtmosphere={true}
-      atmosphereColor="#D4956B"
-      atmosphereAltitude={0.12}
+      showAtmosphere={false}
       enablePointerInteraction={false}
       animateIn={false}
       devicePixelRatio={1.5}

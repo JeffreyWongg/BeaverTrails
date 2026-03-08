@@ -151,12 +151,47 @@ export default function PreferencesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF7F2] text-gray-900">
+    <div className="min-h-screen bg-[#FAF7F2] text-gray-900 relative">
+
+      {/* Left edge decoration */}
+      <div
+        className="fixed top-0 left-0 h-full w-[11vw] pointer-events-none z-0"
+        style={{
+          WebkitMaskImage: "linear-gradient(to right, rgba(0,0,0,0.22) 0%, transparent 100%)",
+          maskImage: "linear-gradient(to right, rgba(0,0,0,0.22) 0%, transparent 100%)",
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/earthtone.png"
+          alt=""
+          className="w-full h-full object-cover"
+          style={{ objectPosition: "left center" }}
+        />
+      </div>
+
+      {/* Right edge decoration */}
+      <div
+        className="fixed top-0 right-0 h-full w-[11vw] pointer-events-none z-0"
+        style={{
+          WebkitMaskImage: "linear-gradient(to left, rgba(0,0,0,0.22) 0%, transparent 100%)",
+          maskImage: "linear-gradient(to left, rgba(0,0,0,0.22) 0%, transparent 100%)",
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/earthtone.png"
+          alt=""
+          className="w-full h-full object-cover"
+          style={{ objectPosition: "right center" }}
+        />
+      </div>
+
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
-        className="max-w-2xl mx-auto px-6 py-16 md:py-24"
+        className="relative z-10 max-w-2xl mx-auto px-6 py-16 md:py-24"
       >
         {/* Header */}
         <div className="mb-14">
