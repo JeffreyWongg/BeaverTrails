@@ -105,16 +105,16 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
       // non-critical
     }
 
-    // Adjust lighting — let the texture show its natural colors
+    // Soften lighting — desaturated, moody look that blends with dark background
     try {
       const scene = globe.scene();
       if (scene) {
         scene.children.forEach((child: { type?: string; intensity?: number }) => {
           if (child.type === "DirectionalLight" && child.intensity !== undefined) {
-            child.intensity = 1.2;
+            child.intensity = 0.6;
           }
           if (child.type === "AmbientLight" && child.intensity !== undefined) {
-            child.intensity = 0.6;
+            child.intensity = 0.35;
           }
         });
       }
@@ -193,8 +193,8 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
       globeImageUrl="//unpkg.com/three-globe/example/img/earth-blue-marble.jpg"
       backgroundColor="rgba(0,0,0,0)"
       showAtmosphere={true}
-      atmosphereColor="#4a90d9"
-      atmosphereAltitude={0.12}
+      atmosphereColor="#3a6a9a"
+      atmosphereAltitude={0.1}
       // Canada highlight
       polygonsData={canadaFeatures}
       polygonAltitude={0.006}

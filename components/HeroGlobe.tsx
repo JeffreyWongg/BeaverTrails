@@ -73,6 +73,12 @@ export default function HeroGlobe({ scrollProgress }: HeroGlobeProps) {
         x,
         y,
         scale,
+        // Radial mask: globe fades smoothly to transparent at the edges
+        WebkitMaskImage:
+          "radial-gradient(ellipse 50% 50% at center, black 30%, transparent 70%)",
+        maskImage:
+          "radial-gradient(ellipse 50% 50% at center, black 30%, transparent 70%)",
+        opacity: 0.85,
       }}
     >
       <Globe width={dimensions.width} height={dimensions.height} />
