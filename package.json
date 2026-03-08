@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@google/genai": "^1.44.0",
@@ -23,19 +25,27 @@
     "qrcode": "^1.5.4",
     "react": "^18",
     "react-dom": "^18",
+    "react-globe.gl": "^2.37.0",
+    "topojson-client": "^3.1.0",
     "three": "^0.183.2",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/howler": "^2.2.12",
     "@types/mapbox-gl": "^3.4.1",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/topojson-client": "^3.1.5",
+    "@vitejs/plugin-react": "^5.1.4",
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
+    "jsdom": "^28.1.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.0.18"
   }
 }
