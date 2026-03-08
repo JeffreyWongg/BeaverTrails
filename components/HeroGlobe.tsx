@@ -42,11 +42,27 @@ export default function HeroGlobe({ scrollProgress }: HeroGlobeProps) {
     return () => window.removeEventListener("resize", updateDimensions);
   }, [updateDimensions]);
 
-  // Transform scroll progress to globe position
-  // L-shaped path: down (0-40%), left (40-70%), down-left (70-100%)
-  const x = useTransform(scrollProgress, [0, 0.4, 0.7, 1], ["25%", "25%", "-25%", "-25%"]);
-  const y = useTransform(scrollProgress, [0, 0.4, 0.7, 1], ["-50%", "-20%", "-20%", "0%"]);
-  const scale = useTransform(scrollProgress, [0, 0.7, 1], [1, 1, 0.85]);
+  // Transform scroll progress to globe position across 3 sections (5 viewport heights)
+  // Section 1 (0–0.2): hero, right side, large
+  // Transition (0.2–0.5): shrink + move left
+  // Section 2 (0.5–0.6): left column, small
+  // Transition (0.6–0.85): swoop to bottom center, grow large
+  // Section 3 (0.85–1): bottom center, very large, low position (line effect)
+  const x = useTransform(
+    scrollProgress,
+    [0, 0.2, 0.5, 0.6, 0.85, 1],
+    ["25%", "25%", "0%", "0%", "17%", "17%"]
+  );
+  const y = useTransform(
+    scrollProgress,
+    [0, 0.2, 0.5, 0.6, 0.85, 1],
+    ["-50%", "-50%", "-50%", "-50%", "5%", "5%"]
+  );
+  const scale = useTransform(
+    scrollProgress,
+    [0, 0.2, 0.5, 0.6, 0.85, 1],
+    [1, 1, 0.3, 0.3, 1.4, 1.4]
+  );
 
   return (
     <motion.div
