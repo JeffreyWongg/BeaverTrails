@@ -26,6 +26,9 @@ const mockScene = vi.fn(() => ({
     { type: "AmbientLight", intensity: 1 },
   ],
 }));
+// Mutable controls object — component sets autoRotate/autoRotateSpeed directly on it
+const mockControls = { autoRotate: false, autoRotateSpeed: 0 };
+const mockControlsFn = vi.fn(() => mockControls);
 
 vi.mock("react-globe.gl", () => {
   const GlobeMock = React.forwardRef((props: Record<string, unknown>, ref: React.Ref<unknown>) => {
@@ -34,6 +37,7 @@ vi.mock("react-globe.gl", () => {
       pointOfView: mockPointOfView,
       globeMaterial: mockGlobeMaterial,
       scene: mockScene,
+      controls: mockControlsFn,
     }));
 
     // Call onGlobeReady after mount
@@ -77,6 +81,9 @@ import GlobeComponent from "../components/Globe";
 describe("GlobeComponent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset controls state between tests
+    mockControls.autoRotate = false;
+    mockControls.autoRotateSpeed = 0;
     // Mock fetch to return valid TopoJSON-like data
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -128,26 +135,26 @@ describe("GlobeComponent", () => {
     render(<GlobeComponent width={800} height={800} />);
     const globe = screen.getByTestId("globe-mock");
     expect(globe.getAttribute("data-show-atmosphere")).toBe("true");
-    expect(globe.getAttribute("data-atmosphere-color")).toBe("#3a9ad9");
+    expect(globe.getAttribute("data-atmosphere-color")).toBe("#4a90d9");
   });
 
-  it("passes ring data for 4 Canadian cities", () => {
+  it("passes ring data for 2 Canadian cities", () => {
     render(<GlobeComponent width={800} height={800} />);
     const globe = screen.getByTestId("globe-mock");
-    expect(globe.getAttribute("data-rings-count")).toBe("4");
+    expect(globe.getAttribute("data-rings-count")).toBe("2");
   });
 
-  it("uses correct earth-dark globe texture URL", () => {
+  it("uses Blue Marble globe texture URL", () => {
     render(<GlobeComponent width={800} height={800} />);
     const globe = screen.getByTestId("globe-mock");
-    expect(globe.getAttribute("data-globe-image-url")).toContain("earth-dark.jpg");
+    expect(globe.getAttribute("data-globe-image-url")).toContain("earth-blue-marble.jpg");
   });
 
   it("ringColor accessor returns valid rgba (no NaN)", () => {
     render(<GlobeComponent width={800} height={800} />);
     const globe = screen.getByTestId("globe-mock");
     const ringColor = globe.getAttribute("data-ring-color");
-    expect(ringColor).toBe("rgba(64, 180, 220, 0.6)");
+    expect(ringColor).toBe("rgba(110, 200, 170, 0.4)");
     expect(ringColor).not.toContain("NaN");
   });
 
@@ -162,11 +169,11 @@ describe("GlobeComponent", () => {
     });
   });
 
-  it("customizes globe material on ready", async () => {
+  it("does NOT override globe material — lets texture show naturally", async () => {
     render(<GlobeComponent width={800} height={800} />);
 
     await waitFor(() => {
-      expect(mockGlobeMaterial).toHaveBeenCalled();
+      expect(mockGlobeMaterial).not.toHaveBeenCalled();
     });
   });
 
@@ -187,11 +194,23 @@ describe("GlobeComponent", () => {
     expect(globe.getAttribute("data-height")).toBe("800");
   });
 
-  it("adjusts lighting for moodier look on globe ready", async () => {
+  it("adjusts lighting on globe ready", async () => {
     render(<GlobeComponent width={800} height={800} />);
 
     await waitFor(() => {
       expect(mockScene).toHaveBeenCalled();
+    });
+  });
+
+  it("enables auto-rotation via controls() on globe ready", async () => {
+    render(<GlobeComponent width={800} height={800} />);
+
+    await waitFor(() => {
+      // controls() must be called (not a dead JSX prop)
+      expect(mockControlsFn).toHaveBeenCalled();
+      // autoRotate must be set to true on the OrbitControls instance
+      expect(mockControls.autoRotate).toBe(true);
+      expect(mockControls.autoRotateSpeed).toBe(0.4);
     });
   });
 });

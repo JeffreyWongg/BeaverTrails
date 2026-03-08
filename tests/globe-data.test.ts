@@ -114,15 +114,13 @@ describe("Canada Extraction", () => {
 // ─────────────────────────────────────────────────
 
 const CANADIAN_RINGS = [
-  { lat: 45.4247, lng: -75.695, maxR: 6, propagationSpeed: 1.5, repeatPeriod: 1200 },
-  { lat: 43.6532, lng: -79.3832, maxR: 8, propagationSpeed: 2, repeatPeriod: 1400 },
-  { lat: 49.2827, lng: -123.1207, maxR: 7, propagationSpeed: 1.8, repeatPeriod: 1300 },
-  { lat: 51.0447, lng: -114.0719, maxR: 5, propagationSpeed: 1.5, repeatPeriod: 1100 },
+  { lat: 45.4247, lng: -75.695, maxR: 3, propagationSpeed: 1.5, repeatPeriod: 1200 },
+  { lat: 43.6532, lng: -79.3832, maxR: 4, propagationSpeed: 2, repeatPeriod: 1400 },
 ];
 
 describe("Ring Marker Data", () => {
   it("has correct number of ring markers", () => {
-    expect(CANADIAN_RINGS).toHaveLength(4);
+    expect(CANADIAN_RINGS).toHaveLength(2);
   });
 
   it("each ring has valid lat/lng in Canadian territory", () => {
@@ -161,10 +159,10 @@ describe("Color Values (no NaN, no null)", () => {
   const rgbaPattern = /^rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*[\d.]+\s*\)$/;
 
   // Reproduce the EXACT accessor functions from Globe.tsx
-  const polygonCapColor = () => "rgba(80, 200, 240, 0.35)";
-  const polygonSideColor = () => "rgba(80, 200, 240, 0.2)";
-  const polygonStrokeColor = () => "rgba(120, 220, 255, 0.8)";
-  const ringColor = () => "rgba(64, 180, 220, 0.6)";
+  const polygonCapColor = () => "rgba(255, 255, 255, 0.08)";
+  const polygonSideColor = () => "rgba(180, 220, 255, 0.05)";
+  const polygonStrokeColor = () => "rgba(180, 220, 255, 0.25)";
+  const ringColor = () => "rgba(110, 200, 170, 0.4)";
 
   it("polygonCapColor returns valid rgba", () => {
     const color = polygonCapColor();

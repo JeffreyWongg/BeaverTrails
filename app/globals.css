@@ -7,17 +7,10 @@
   --foreground: #ffffff;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #000000;
-    --foreground: #ffffff;
-  }
-}
-
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-newsreader), Georgia, "Times New Roman", serif;
   margin: 0;
   padding: 0;
   overflow-x: hidden;
@@ -35,8 +28,6 @@ body {
     print-color-adjust: exact;
   }
 
-  /* framer-motion applies opacity:0 / translateY inline on elements that haven't
-     animated yet. !important is required to override inline styles. */
   body * {
     opacity: 1 !important;
     transform: none !important;

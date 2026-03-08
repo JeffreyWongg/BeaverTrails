@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { Newsreader } from "next/font/google";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -12,10 +13,17 @@ const geistMono = localFont({
   variable: "--font-geist-mono",
   weight: "100 900",
 });
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  variable: "--font-newsreader",
+  weight: ["400"],
+  style: ["normal", "italic"],
+});
 
 export const metadata: Metadata = {
   title: "BeaverTrails",
-  description: "BeaverTrails is a travel assistant that helps you plan your trip to Canada.",
+  description:
+    "BeaverTrails is a travel assistant that helps you plan your trip to Canada.",
 };
 
 export default function RootLayout({
@@ -26,7 +34,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable} antialiased`}
       >
         {children}
       </body>
