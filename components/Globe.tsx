@@ -105,6 +105,14 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
       // non-critical
     }
 
+    // Cap pixel ratio for performance — no need for retina-level detail on a background element
+    try {
+      const renderer = globe.renderer();
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    } catch {
+      // non-critical
+    }
+
     // Soften lighting — desaturated, moody look that blends with dark background
     try {
       const scene = globe.scene();
@@ -221,8 +229,8 @@ export default function GlobeComponent({ width = 800, height = 800 }: GlobeCompo
       ringPropagationSpeed="propagationSpeed"
       ringRepeatPeriod="repeatPeriod"
       ringAltitude={0.02}
-      // Interaction
-      enablePointerInteraction={true}
+      // Interaction — disabled for performance (background element)
+      enablePointerInteraction={false}
       animateIn={false}
       onGlobeReady={handleGlobeReady}
     />
