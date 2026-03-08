@@ -11,9 +11,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@auth0/nextjs-auth0": "^4.16.0",
     "@google/genai": "^1.44.0",
     "@googlemaps/js-api-loader": "^2.0.2",
     "@react-pdf/renderer": "^4.3.2",
+    "@supabase/supabase-js": "^2.98.0",
     "@types/geojson": "^7946.0.16",
     "@types/qrcode": "^1.5.6",
     "@types/three": "^0.183.1",
