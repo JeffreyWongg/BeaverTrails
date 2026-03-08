@@ -27,6 +27,12 @@ export interface SurveyState {
   // Phase 5: Immersive view state
   immersiveConfig: { stop: Stop; time: string; season: string } | null;
 
+  // Narration script cache: keyed by `${stopKey}_${timeOfDay}_${season}`
+  narrationScripts: Record<string, string>;
+
+  // Per-stop Q&A chat history, keyed by stopKey
+  immersiveChatHistory: Record<string, Array<{ q: string; a: string }>>;
+
   // Actions
   setField: <K extends keyof Omit<SurveyState, 'setField' | 'resetSurvey'>>(
     field: K,
@@ -50,6 +56,8 @@ const initialState = {
   itinerary: [],
   streetViewCoverage: {},
   immersiveConfig: null,
+  narrationScripts: {},
+  immersiveChatHistory: {},
 };
 
 export const useSurveyStore = create<SurveyState>()((set) => ({
