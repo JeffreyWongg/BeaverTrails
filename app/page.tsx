@@ -86,7 +86,7 @@ export default function Home() {
               transition={{ duration: 0.5, delay: 0.35, ease: "easeOut" }}
             >
               <Link
-                href="/survey"
+                href="/login"
                 className="inline-flex items-center gap-3 px-7 py-3.5 border border-white/20 text-white rounded-full text-lg md:text-xl leading-relaxed group glow-button"
               >
                 Start Planning
